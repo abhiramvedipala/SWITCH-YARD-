@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Core } from '../core.js';
 import { BusError } from '../bus/service.js';
 import { ptys } from '../pty/manager.js';
+import { planReply, rawKeyBytes } from '../pty/input.js';
 import { getSetting, setSetting } from '../db/index.js';
 import {
   ensureAgyMcpEntry,
@@ -370,21 +371,32 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
         return { ok: true };
       }
       if (!ptys.isAlive(n.id)) throw new Error('terminal is not running');
-      monitor.noteUserInput(n.id);
       if (b.raw) {
-        const keys: Record<string, string> = {
-          enter: '\r',
-          esc: '\x1b',
-          up: '\x1b[A',
-          down: '\x1b[B',
-          tab: '\t',
-          'ctrl-c': '\x03',
-        };
-        ptys.write(n.id, keys[b.text] ?? b.text);
+        // The explicit key buttons (1/2/3/y/n/Enter/Esc/arrows): the only input accepted at a prompt.
+        const bytes = rawKeyBytes(b.text);
+        if (bytes === null)
+          throw new BusError(
+            'bad_key',
+            'raw input must be a named key or a single letter/digit',
+            400,
+          );
+        monitor.noteUserInput(n.id);
+        ptys.write(n.id, bytes);
         return { ok: true };
       }
-      ptys.write(n.id, b.text);
-      if (b.submit !== false) setTimeout(() => ptys.write(n.id, '\r'), 120);
+      // While the agent shows a permission/trust/elicitation prompt, free text could answer it by accident.
+      if (n.state === 'needs_input')
+        throw new BusError(
+          'needs_input_keys_only',
+          'This node is waiting at a prompt. Use the key buttons (or Allow/Deny), not free text.',
+          409,
+        );
+      const plan = planReply(b.text, b.submit !== false);
+      if (!plan)
+        throw new BusError('empty_reply', 'nothing to send after removing control characters', 400);
+      monitor.noteUserInput(n.id);
+      ptys.write(n.id, plan.body);
+      if (plan.submit) setTimeout(() => ptys.write(n.id, '\r'), 120);
       return { ok: true };
     }),
   );
