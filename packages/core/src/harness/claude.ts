@@ -106,6 +106,53 @@ export function normalizeClaudeLine(obj: Record<string, unknown>): NormalizedEve
   return out;
 }
 
+/**
+ * argv for one driven (headless) Claude turn. No human can answer a prompt here, so
+ * --permission-prompts none denies anything not pre-approved (and tells Claude not to retry).
+ * Bypass mode is only used when the node's YOLO switch is on.
+ */
+export function claudeTurnArgs(opts: TurnOptions): string[] {
+  const args = [
+    '-p',
+    opts.prompt,
+    '--output-format',
+    'stream-json',
+    '--verbose',
+    '--include-partial-messages',
+  ];
+  if (opts.sessionId) args.push('--resume', opts.sessionId);
+  if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
+  if (opts.nodeId) {
+    args.push('--mcp-config', claudeMcpConfig(opts.nodeId));
+    args.push('--settings', claudeHookSettings(opts.nodeId));
+  }
+  if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
+  if (opts.yolo) {
+    args.push('--permission-mode', 'bypassPermissions');
+  } else {
+    args.push('--permission-mode', 'acceptEdits', '--permission-prompts', 'none');
+    if (opts.allowedTools?.length) args.push('--allowedTools', opts.allowedTools.join(','));
+  }
+  return args;
+}
+
+/** One readable line per denied tool call, from a result's permission_denials or a permission_denied event. */
+export function describeDenials(obj: Record<string, unknown>): string[] {
+  const raw = (obj.permission_denials ??
+    (obj.subtype === 'permission_denied' ? [obj] : [])) as unknown;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((d) => {
+    const r = d as { tool_name?: string; tool?: string; tool_input?: Record<string, unknown> };
+    const name = r.tool_name ?? r.tool ?? 'tool';
+    const input = r.tool_input ?? {};
+    const detail = String(input.command ?? input.file_path ?? input.path ?? input.url ?? '').slice(
+      0,
+      120,
+    );
+    return detail ? `${name}: ${detail}` : name;
+  });
+}
+
 export const claude: Harness = {
   id: 'claude',
   label: 'Claude Code',
@@ -152,24 +199,7 @@ export const claude: Harness = {
   },
 
   async runTurn(opts: TurnOptions): Promise<TurnResult> {
-    const args = [
-      '-p',
-      opts.prompt,
-      '--output-format',
-      'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-    ];
-    if (opts.sessionId) args.push('--resume', opts.sessionId);
-    if (opts.schema) args.push('--json-schema', JSON.stringify(opts.schema));
-    if (opts.nodeId) {
-      args.push('--mcp-config', claudeMcpConfig(opts.nodeId));
-      args.push('--settings', claudeHookSettings(opts.nodeId));
-    }
-    if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
-    args.push('--permission-mode', opts.yolo ? 'bypassPermissions' : 'acceptEdits');
-    if (!opts.yolo && opts.allowedTools?.length)
-      args.push('--allowedTools', opts.allowedTools.join(','));
+    const args = claudeTurnArgs(opts);
 
     let text = '';
     let finalText = '';
@@ -178,6 +208,7 @@ export const claude: Harness = {
     let usage: unknown;
     let isError = false;
     let errMsg: string | undefined;
+    const denials = new Set<string>();
     const emit = (e: NormalizedEvent) => opts.onEvent?.(e);
     emit({ kind: 'status', state: 'working' });
     const run = await runNdjson(bin(), args, {
@@ -197,8 +228,10 @@ export const claude: Harness = {
           isError =
             obj.is_error === true || (typeof obj.subtype === 'string' && obj.subtype !== 'success');
           if (isError) errMsg = finalText || String(obj.subtype);
+          for (const d of describeDenials(obj)) denials.add(d);
           return;
         }
+        if (obj.type === 'system') for (const d of describeDenials(obj)) denials.add(d);
         for (const e of normalizeClaudeLine(obj)) {
           if (e.kind === 'text') text += e.delta;
           emit(e);
@@ -216,6 +249,14 @@ export const claude: Harness = {
           : run.stderr.slice(-2000) || `exit ${run.code}`;
     emit({ kind: 'result', text: resultText, sessionId, usage });
     emit({ kind: 'status', state: 'idle' });
-    return { ok, text: resultText, structured, sessionId, usage, error: ok ? undefined : errMsg };
+    return {
+      ok,
+      text: resultText,
+      structured,
+      sessionId,
+      usage,
+      denials: [...denials],
+      error: ok ? undefined : errMsg,
+    };
   },
 };
