@@ -376,3 +376,39 @@ textarea {
   box-shadow: none;
   border: 1px solid var(--border);
 }
+
+/* ---------------------------------------------------------------- accessibility */
+@media (prefers-contrast: more) {
+  :root {
+    --border: rgba(255, 255, 255, 0.28);
+    --border-2: rgba(255, 255, 255, 0.4);
+    --muted: rgba(255, 255, 255, 0.8);
+  }
+  .modal,
+  .palette,
+  .menu,
+  .node {
+    border-width: 1.5px;
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  :root {
+    --border: rgba(0, 0, 0, 0.32);
+    --border-2: rgba(0, 0, 0, 0.45);
+    --muted: rgba(0, 0, 0, 0.78);
+  }
+}
+/* Reduce Transparency: flat solid surfaces instead of glass (as iNotch falls back from Liquid Glass). */
+@media (prefers-reduced-transparency: reduce) {
+  .modal,
+  .palette,
+  .menu,
+  .toast {
+    background: var(--panel-2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .modal-backdrop {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
