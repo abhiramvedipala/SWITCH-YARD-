@@ -41,7 +41,10 @@ export class NodeService {
     private caps: Capabilities,
   ) {
     ptys.onExit((id) => {
-      if (this.store.getNode(id)) this.bus.setStatus(id, 'exited');
+      if (!this.store.getNode(id)) return;
+      // A dead process keeps nothing: the next start() issues fresh credentials.
+      this.caps.revoke(id);
+      this.bus.setStatus(id, 'exited');
     });
   }
 
@@ -142,8 +145,11 @@ export class NodeService {
 
   stop(nodeId: string): void {
     this.onReset(nodeId);
-    ptys.kill(nodeId);
-    if (this.store.getNode(nodeId)) this.bus.setStatus(nodeId, 'exited');
+    ptys.kill(nodeId); // drops the session first, so the exit listener above does not fire for it
+    const node = this.store.getNode(nodeId);
+    if (!node) return;
+    if (this.isPtyNode(node)) this.caps.revoke(nodeId); // chat nodes keep theirs: nothing restarts them
+    this.bus.setStatus(nodeId, 'exited');
   }
 
   remove(nodeId: string): void {
@@ -153,13 +159,19 @@ export class NodeService {
     this.store.deleteNode(nodeId);
   }
 
-  /** After a core restart no PTY survives: mark terminal nodes exited, keep agent caps valid. */
+  /**
+   * After a core restart no PTY survives: mark terminal nodes exited and revoke their caps (restart reissues);
+   * driven chat nodes have no process to restart, so their caps stay valid.
+   */
   onBoot(): void {
     const all = this.store.allNodes();
-    this.caps.restore(all.filter((n) => n.harness && n.harness !== 'shell').map((n) => n.id));
+    const isAgent = (n: NodeRec) => !!n.harness && getHarness(n.harness).isAgent;
+    this.caps.restore(all.filter((n) => isAgent(n) && !this.isPtyNode(n)).map((n) => n.id));
     for (const n of all) {
-      if (this.isPtyNode(n) && !ptys.isAlive(n.id))
+      if (this.isPtyNode(n) && !ptys.isAlive(n.id)) {
         this.store.updateNode(n.id, { state: 'exited' }, { silent: true });
+        if (isAgent(n)) this.caps.revoke(n.id);
+      }
       if (n.type === 'agent-chat' && n.state === 'working')
         this.store.updateNode(n.id, { state: 'idle' }, { silent: true });
     }
