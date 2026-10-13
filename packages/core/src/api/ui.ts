@@ -33,6 +33,7 @@ import {
   writeRuleFor,
 } from '../harness/agy-settings.js';
 import type { NodeType } from '../store.js';
+import { usageSummary } from '../usage/index.js';
 
 function fail(reply: FastifyReply, err: unknown) {
   if (err instanceof BusError)
@@ -550,6 +551,14 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       const byKind: Record<string, number> = {};
       for (const i of items) byKind[i.kind] = (byKind[i.kind] ?? 0) + 1;
       return { count: items.length, byKind, hash };
+    }),
+  );
+  /** Spend so far: total, or for one node / run (`?nodeId=` / `?runId=`). */
+  app.get(
+    '/api/usage',
+    h((req) => {
+      const q = req.query as { nodeId?: string; runId?: string };
+      return usageSummary(core.db, { nodeId: q.nodeId, runId: q.runId });
     }),
   );
   app.post(

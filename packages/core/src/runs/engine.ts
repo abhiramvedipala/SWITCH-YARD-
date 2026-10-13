@@ -8,6 +8,7 @@ import type { HarnessId, TurnResult } from '../harness/types.js';
 import { scratchRoot, assertSafeCwd } from '../paths.js';
 import { runCapture } from '../harness/util.js';
 import { getSetting } from '../db/index.js';
+import { recordUsage } from '../usage/index.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
 import {
   snapshot,
@@ -609,7 +610,7 @@ export class RunEngine {
     set.add(ctrl);
     this.controllers.set(runId, set);
     try {
-      return await h.runTurn({
+      const res = await h.runTurn({
         prompt: opts.prompt,
         cwd: opts.cwd,
         schema: opts.schema,
@@ -622,6 +623,8 @@ export class RunEngine {
           if (e.kind === 'tool' && e.name !== 'result') opts.onTool?.(e.name);
         },
       });
+      recordUsage(this.store.db, { harness, runId }, res);
+      return res;
     } finally {
       set.delete(ctrl);
     }

@@ -1,3 +1,4 @@
+import { recordUsage } from '../usage/index.js';
 import type { Store, NodeRec } from '../store.js';
 import type { Bus } from '../bus/service.js';
 import { getHarness } from '../harness/index.js';
@@ -185,6 +186,7 @@ export class ChatService {
           }
         },
       });
+      recordUsage(this.store.db, { harness: node.harness ?? 'unknown', nodeId: isProject ? null : nodeId }, res);
       if (!reply.text && res.text) reply.text = res.text;
       if (!res.ok) reply.error = res.error ?? 'turn failed';
       this.save(nodeId, msgs, { sessionRef: res.sessionId ?? node.sessionRef });
