@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// Runs the web build in watch mode and the core server in watch mode side by side,
-// without pulling in a process-runner dependency. Core serves packages/web/dist directly,
-// so the DoD ("npm run dev" -> http://127.0.0.1:4777 shows the app) holds without a dev proxy.
+// `npm run dev`: the Vite dev server with HMR on http://127.0.0.1:5173 (it proxies /api, /bus and /ws to core,
+// see packages/web/vite.config.ts), bus-mcp in watch mode and core with auto-reload, side by side and without
+// pulling in a process-runner dependency.
+// `npm run dev:build` (--build): the old mode. A watch build into packages/web/dist that core serves itself,
+// so http://127.0.0.1:4777 shows the app without a dev proxy (no HMR; reload the page after a change).
 import { spawn } from 'node:child_process';
 
+const hmr = !process.argv.includes('--build');
+const core = `http://127.0.0.1:${process.env.SWITCHYARD_PORT ?? 4777}`;
 const children = [];
 
 function run(name, cmd, args, cwd) {
@@ -29,6 +33,11 @@ function shutdown(code) {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-run('web', 'npm', ['run', 'dev', '-w', '@switchyard/web'], process.cwd());
+console.log(
+  hmr
+    ? `\nSwitchyard dev UI (HMR): http://127.0.0.1:5173   (core: ${core})\n`
+    : `\nSwitchyard dev UI (watch build, no HMR): ${core}\n`,
+);
+run('web', 'npm', ['run', hmr ? 'dev' : 'dev:build', '-w', '@switchyard/web'], process.cwd());
 run('bus-mcp', 'npm', ['run', 'dev', '-w', '@switchyard/bus-mcp'], process.cwd());
 run('core', 'npm', ['run', 'dev', '-w', '@switchyard/core'], process.cwd());

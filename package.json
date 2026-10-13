@@ -12,6 +12,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:build": "node scripts/dev.mjs --build",
     "build": "npm run build -w @switchyard/web && npm run build -w @switchyard/bus-mcp && npm run build -w @switchyard/core",
     "start": "npm run build && npm run start -w @switchyard/core",
     "test": "npm run test --workspaces --if-present",
