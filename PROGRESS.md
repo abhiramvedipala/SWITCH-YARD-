@@ -126,6 +126,56 @@ npm start                     # note the token it prints
       won't edit without your OK. Example:
       `{"permissions":{"allow":["command(git)","command(regex:python3 -m pytest.*)"]}}`
 
+## Acceptance (real agents; one OWNER CHECK at a time, fresh `~/.switchyard/scratch` workspace each)
+
+Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, add a mock regression test, re-run only that check.
+
+| Check                          | Result  | Notes |
+| ------------------------------ | ------- | ----- |
+| A1 two real agents talk        | pending |       |
+| A2 delivery without typing     | pending |       |
+| A3 permission from the sidebar | pending |       |
+| A4 ask_user                    | pending |       |
+| A5 real run                    | pending |       |
+| A6 resume                      | pending |       |
+
+### OWNER CHECK A1 — two real agents talk
+
+1. `npm start` (or open Switchyard.app), log in. **New workspace** → pick **scratch** (a fresh folder under `~/.switchyard/scratch/`).
+2. **+ Add → Claude Code agent**, then **+ Add → Antigravity agent**. Drag from the Claude node's edge dot to the agy node to connect them.
+3. If **Needs you** shows "Accept the folder trust prompt in this node", click **Accept**.
+4. Settings (⚙) → Antigravity: click **Connect Antigravity** (writes the `switchyard` MCP entry + `mcp(switchyard/*)` allow rule; a `.bak` is kept). If the agy node was already running, click its **Restart**.
+5. Type into the Claude node:
+   `List your switchyard peers. Send the Antigravity peer a request asking for the single word pong, then wait for the reply and tell me what it said.`
+6. Type into the agy node: `Check your switchyard inbox and answer the request.`
+7. **Pass looks like:** Claude prints "pong"; no permission prompt appeared for `switchyard` tools; both status chips cycled working → idle.
+8. Paste back: Claude's last line, whether any prompt appeared, and the last 20 lines of `~/.switchyard/server.log`.
+
+### OWNER CHECK A2 — delivery without typing
+
+Same nodes. Into Claude: `Send the Antigravity peer a notify message saying hello, then stop.` Into agy: `Do nothing else; just wait.` Then into agy: `Send the Claude peer a request asking what 2+2 is.`
+**Pass:** Claude answers on its next turn end via the Stop-hook path; Settings → Diagnostics (or `GET /api/attention`) shows nudge count 0. Paste back Claude's answer and `grep -c nudge ~/.switchyard/server.log`.
+
+### OWNER CHECK A3 — permission from the sidebar
+
+Into Claude: `Run the shell command: echo switchyard-ok > ok.txt`
+**Pass:** a card with `Bash` and the command appears in Needs you within 2 s; **Allow once** runs it (`ok.txt` exists); repeat with **Deny** and Claude reports the denial. Paste back what you saw.
+
+### OWNER CHECK A4 — ask_user
+
+Into Claude: `Use the switchyard ask_user tool to ask me which color to use, then tell me my answer.`
+**Pass:** question in Needs you within 2 s; your answer reaches Claude. Paste back Claude's reply.
+
+### OWNER CHECK A5 — real run
+
+Runs → goal `Create hello.py with a function reverse(s) that reverses a string, plus pytest tests; have the other agent review.` Where = new scratch, Planner = Claude, Builder = Claude, Reviewer = Antigravity. If agy may not run pytest, first click Settings → Antigravity → **Let agents run tests here**. Plan run → edit if you like → Approve & start.
+**Pass:** result card with files touched, `git diff --stat`, pytest output (or an honest "unverified" naming the denial), and a `Usage:` total. Paste back the card text.
+
+### OWNER CHECK A6 — resume
+
+Import sessions → Claude Code sessions → pick a real past session → **Resume here**; then Antigravity conversations → pick one → **Resume**.
+**Pass:** both open with their history. Paste back yes/no for each.
+
 ## Deviations from the brief (working rule #8)
 
 - **`npm run dev`** uses `vite build --watch` (no HMR) so core serves the UI on
