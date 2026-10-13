@@ -90,9 +90,12 @@ permissions.
 3. The core binds to `127.0.0.1` only (hard-coded).
 4. Agents run in their normal permission-prompting mode. Bypass (`--permission-mode bypassPermissions` for Claude, `--dangerously-skip-permissions` for agy) happens only when you turn on the red **YOLO mode** for that node, behind a confirmation.
 5. No analytics, no update checks, no outbound calls from Switchyard itself.
-6. Secrets (UI token, per-node capabilities) are `0600` files in `~/.switchyard/`, never environment variables with TOKEN/KEY/SECRET/AUTH/PASSWORD in the name.
+6. Secrets (UI token, per-node capabilities and hook secrets) are `0600` files in `~/.switchyard/`, never environment variables with TOKEN/KEY/SECRET/AUTH/PASSWORD in the name. Each agent process only receives `SWITCHYARD_NODE`, `SWITCHYARD_HOME` and `SWITCHYARD_CAPFILE` (the _path_ of its run file); bus-mcp refuses a capfile that is not a regular `0600` file owned by you. Capabilities and hook secrets are rotated on every (re)start and revoked when the process exits, is stopped, or the core restarts; every bad credential gets the same 401.
 
-Files outside the repo that Switchyard writes: `~/.switchyard/`, plus the
+Files outside the repo that Switchyard writes: `~/.switchyard/` (including
+`run/<nodeId>.json`, one `0600` file per live agent node with its capability and
+hook secret, deleted on exit, and `run/by-cwd/<sha>.json` with the node id per
+agent folder for hosts that don't pass env through), plus the
 `switchyard` entry in `~/.gemini/config/mcp_config.json` when you start an
 Antigravity node (other entries are left alone, and Settings can remove it).
 It writes `~/.gemini/config/hooks.json` only if you click "Install status

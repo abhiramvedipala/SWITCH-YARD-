@@ -203,7 +203,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F3** permissions so bus tools don't prompt
 - [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
 - [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; ui-checks for Allow / Deny / timeout and the folder-trust prompt)
-- [ ] **F6** identity and capability hygiene
+- [x] **F6** identity and capability hygiene: `SWITCHYARD_CAPFILE` (0600/owner/regular-file checked in bus-mcp), one 401 body for every bad credential, revoke on exit/stop/boot, `--max-semi-space-size=1` on child processes
 - [x] **F7** sessions: agy conversation list from `~/.gemini/antigravity-cli/brain` (fixture tests)
 - [ ] **F8** persistent agy driven sessions (skipped for now)
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
@@ -234,6 +234,12 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 **What changed:** `auth/remote.ts` verifies every proxied request: `tailscale-user-login` header present, `tailscale whois --json <last x-forwarded-for ip>` (PATH or the App Store bundle) returns the same `UserProfile.LoginName`, result cached 60 s per IP (in-flight promise shared, failures cached, one log line per 60 s). First verified login is pinned (`remoteOwnerLogin`); PATCH accepts only `''` and only from the computer (Settings → Forget). The `/ws` upgrade accepts a `*.ts.net` Origin only after that verification. Bearer 401 still runs first so unauthenticated probes never spawn whois.
 **How to try it:** vitest `auth/remote.test.ts` + `remote.test.ts` (real ephemeral listener + `ws` client); ui-check puts a fake `tailscale` first on PATH so the real runner is exercised (+2 checks).
 **Unverified:** real Serve header behaviour (appends vs replaces `x-forwarded-for`), real `whois --json` shape, whether the App Store CLI needs `--socket`.
+
+### F6: identity and capability hygiene
+
+**What changed:** core passes each agent process only `SWITCHYARD_NODE`, `SWITCHYARD_HOME` and `SWITCHYARD_CAPFILE` (the _path_ of its 0600 run file; the agy entry carries `"$SWITCHYARD_CAPFILE"` next to `"$SWITCHYARD_NODE"`). bus-mcp resolves CAPFILE → SWITCHYARD_NODE → by-cwd, `lstat`s the file (regular, mode 0600, own uid; symlinks refused) and throws if the file belongs to another node id. Capabilities and hook secrets are revoked in the PTY exit listener, on Stop and at boot for dead terminal agents (driven chat nodes keep theirs). Both bus routes answer every bad credential with one body: `unknown node, stale capability or wrong secret`. `LEAN_NODE_FLAGS` now also has `--max-semi-space-size=1` (bus-mcp, hook.js, hook-agy.js, mock-agent; core unchanged).
+**How to try it:** start a mock node, `ls -l ~/.switchyard/run/<id>.json` (0600), stop it → file gone; `curl -H 'x-switchyard-node: <id>' -H 'x-switchyard-cap: nope' http://127.0.0.1:4777/bus/whoami` → the shared 401. Tests: `auth/capfile.test.ts`, `api/bus-auth.test.ts`, `nodes/lifecycle.test.ts`; e2e node B runs on `SWITCHYARD_CAPFILE` alone.
+**Unverified:** the other-uid refusal (needs a second user); whether agy expands `$SWITCHYARD_CAPFILE` (F1 probe decides; the by-cwd fallback stays).
 
 ### F4: delivery without typing
 
