@@ -6,6 +6,7 @@ import type { Capabilities } from '../auth/capability.js';
 import { ptys } from '../pty/manager.js';
 import { getHarness, isHarnessId } from '../harness/index.js';
 import { hub } from '../events.js';
+import { assertSafeCwd } from '../paths.js';
 
 const PTY_TYPES: NodeType[] = ['terminal', 'agent-terminal'];
 const DEFAULT_SIZE: Record<NodeType, [number, number]> = {
@@ -30,6 +31,7 @@ export interface CreateNodeInput {
   data?: Record<string, unknown>;
   resumeRef?: string | null;
   sessionRef?: string | null;
+  allowOwnFolder?: boolean;
 }
 
 export class NodeService {
