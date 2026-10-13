@@ -177,15 +177,19 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F2** run dirs out of the repo
 - [x] **F3** permissions so bus tools don't prompt
 - [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
-- [ ] **F5** authoritative status + Allow/Deny from the sidebar
+- [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; UI-check for the Allow/Deny card still to add)
 - [ ] **F6** identity and capability hygiene
 - [ ] **F7** sessions: agy conversation list
 - [ ] **F8** persistent agy driven sessions (skipped for now)
-- [ ] **F9** usage meter
-- [ ] **F10** remote hardening
+- [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`; UI chips on node cards still to add)
+- [~] **F10** remote hardening: Funnel traffic refused with 403, remote detection via forwarding headers; `tailscale whois` verification still to do
 - [ ] **F11** background-session spike (skipped)
 - [ ] **F12** polish: code-splitting only so far
 
 ### F4: delivery without typing
 **What changed:** every Claude node gets an HTTP `Stop` hook (`/bus/hook/claude/<node>/<secret>`, per-node secret rotated with the capability); core answers with block / context / `{}` from the tested decision tables and stores `last_assistant_message` as the node summary. agy gets `hook-agy.js` + `POST /bus/agy/hook` (PreInvocation / Stop). The PTY nudge is last-resort only (off for Claude unless opted in, hook-driven or mock nodes only, never while needs_input, counted in `monitor.nudgeCount`). Human replies go through `pty/input.ts` (bracketed paste, `Reply: ` prefix, control chars stripped) and free text is refused while a node is in needs_input.
 **How to try it:** `cd packages/core && npx vitest run src/bus/hook-route.test.ts src/api/reply.test.ts src/pty`.
+
+### Mac packaging, selftest
+**What changed:** `npm run mac:app` builds a script-based `Switchyard.app` (no Electron); PWA manifest for Add to Dock; `server.pid` + `npm run stop`; `npm run selftest` checks idle RSS/CPU budget (76 MB / 0.9% measured on Linux).
+**How to try it:** `npm run build && npm run selftest`.
