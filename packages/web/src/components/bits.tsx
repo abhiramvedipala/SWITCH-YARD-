@@ -21,10 +21,10 @@ export function StatusChip({ state }: { state: NodeState | string }) {
 export function Logo({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <path d="M16 27 V17" stroke="#e5e7eb" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M16 27 V17" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
       <path d="M16 17 L8 7" stroke="#22d3ee" strokeWidth="2.6" strokeLinecap="round" fill="none" />
       <path d="M16 17 L24 7" stroke="#a78bfa" strokeWidth="2.6" strokeLinecap="round" fill="none" />
-      <circle cx="16" cy="17" r="2" fill="#e5e7eb" />
+      <circle cx="16" cy="17" r="2" fill="currentColor" />
     </svg>
   );
 }
