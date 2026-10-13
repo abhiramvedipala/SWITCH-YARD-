@@ -9,6 +9,9 @@ import type {
 } from './types.js';
 import { runNdjson, busEnv, LEAN_NODE_FLAGS } from './util.js';
 
+/** Fixed per-turn usage (no price) so run/step totals are testable: a run's total is 150 × its turns. */
+const MOCK_USAGE = { input_tokens: 100, output_tokens: 50 };
+
 /**
  * A scripted stand-in agent: same bus-mcp server, same NDJSON plumbing, zero AI usage.
  * Interactive in a terminal (type `help`), and deterministic in driven mode for Runs.
@@ -62,7 +65,12 @@ export const mock: Harness = {
       },
     });
     const ok = !!result && result.ok !== false && run.code === 0 && !run.aborted;
-    emit({ kind: 'result', text: result?.text ?? text, sessionId: result?.sessionId ?? null });
+    emit({
+      kind: 'result',
+      text: result?.text ?? text,
+      sessionId: result?.sessionId ?? null,
+      usage: MOCK_USAGE,
+    });
     emit({ kind: 'status', state: 'idle' });
     return {
       ok,
@@ -70,6 +78,7 @@ export const mock: Harness = {
       structured: result?.structured,
       denials: result?.denials,
       sessionId: result?.sessionId ?? null,
+      usage: MOCK_USAGE,
       error: ok
         ? undefined
         : (result?.error ??
