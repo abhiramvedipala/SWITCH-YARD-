@@ -77,6 +77,27 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+/**
+ * Long-poll one JSON resource: resolves with the new body when it changes, or null on 304 (nothing changed).
+ * The server holds the request up to `waitSec`, so an idle watcher costs about one request per 25 s.
+ */
+export async function pollChanged<T extends { hash: string }>(
+  path: string,
+  since: string | null,
+  signal: AbortSignal,
+  waitSec = 25,
+): Promise<T | null> {
+  const token = getToken();
+  const q = `${path}${path.includes('?') ? '&' : '?'}wait=${waitSec}${since ? `&since=${since}` : ''}`;
+  const res = await fetch(q, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
+  });
+  if (res.status === 304) return null;
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return (await res.json()) as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
