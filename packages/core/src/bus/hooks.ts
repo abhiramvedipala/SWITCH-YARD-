@@ -1,7 +1,13 @@
 import type { Store } from '../store.js';
 import type { Bus } from './service.js';
 import type { StatusMonitor } from '../status/monitor.js';
-import { BlockCounter, claudeStopDecision, type Backlog } from './delivery.js';
+import {
+  BlockCounter,
+  claudeStopDecision,
+  agyPreInvocationDecision,
+  agyStopDecision,
+  type Backlog,
+} from './delivery.js';
 
 type Payload = Record<string, unknown>;
 
@@ -51,6 +57,35 @@ export class HookRouter {
     if (decision.blocked) this.monitor.setHookState(nodeId, 'working');
     else this.monitor.onHook(nodeId, 'claude', 'Stop', payload);
     return decision.output;
+  }
+
+  /** Handle one Antigravity hook event (capability-authenticated; node already resolved by the relay). */
+  async agy(nodeId: string, event: string, payload: Payload): Promise<Record<string, unknown>> {
+    if (!this.store.getNode(nodeId)) return {};
+    const key = typeof payload.conversationId === 'string' ? payload.conversationId : nodeId;
+    const backlog = this.backlog(nodeId);
+    switch (event) {
+      case 'PreInvocation': {
+        this.monitor.onHook(nodeId, 'agy', 'PreInvocation', payload);
+        return agyPreInvocationDecision(backlog).output;
+      }
+      case 'Stop': {
+        const fullyIdle = payload.fullyIdle === true;
+        const d = agyStopDecision({
+          fullyIdle,
+          backlog,
+          consecutiveBlocks: this.blocks.get(key),
+        });
+        this.blocks.record(key, d, backlog);
+        // Only a fully idle agent is idle; a Stop in the middle of a multi-execution turn is still working.
+        if (fullyIdle && !d.blocked) this.monitor.onHook(nodeId, 'agy', 'Stop', payload);
+        else this.monitor.setHookState(nodeId, 'working');
+        return d.output;
+      }
+      default:
+        this.monitor.onHook(nodeId, 'agy', event, payload);
+        return {};
+    }
   }
 
   forget(nodeId: string): void {

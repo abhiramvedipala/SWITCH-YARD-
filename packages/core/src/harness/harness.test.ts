@@ -300,3 +300,33 @@ describe('session import', () => {
     expect(conversationToMarkdown(b!)).toContain('## You\n\nmatch emails');
   });
 });
+
+describe('agy hooks.json entry', () => {
+  it('uses the documented shape, owns only the "switchyard" key and removes the legacy one', async () => {
+    const { installAgyHooks, removeAgyHooks, hasAgyHooks, agyHooksConfigPath, agyHooksEntry } =
+      await import('./agy.js');
+    mkdirSync(join(process.env.SWITCHYARD_GEMINI_DIR!, 'config'), { recursive: true });
+    writeFileSync(
+      agyHooksConfigPath(),
+      JSON.stringify({ theirs: { enabled: true }, 'switchyard-status': { old: true } }),
+    );
+    installAgyHooks();
+    const cfg = JSON.parse(readFileSync(agyHooksConfigPath(), 'utf8'));
+    expect(cfg.theirs).toEqual({ enabled: true });
+    expect(cfg['switchyard-status']).toBeUndefined();
+    const e = cfg.switchyard;
+    expect(e.enabled).toBe(true);
+    expect(e.PreToolUse[0].matcher).toBe('ask_permission|ask_question');
+    expect(e.PreToolUse[0].hooks[0]).toMatchObject({ type: 'command', timeout: 300 });
+    expect(e.PreToolUse[0].hooks[0].command).toMatch(/hook-agy\.js" PreToolUse$/);
+    expect(e.PreInvocation[0]).toMatchObject({ type: 'command', timeout: 10 });
+    expect(e.Stop[0].command).toMatch(/hook-agy\.js" Stop$/);
+    expect(cfg.switchyard).toEqual(agyHooksEntry());
+    expect(hasAgyHooks()).toBe(true);
+    expect(removeAgyHooks()).toBe(true);
+    expect(JSON.parse(readFileSync(agyHooksConfigPath(), 'utf8'))).toEqual({
+      theirs: { enabled: true },
+    });
+    expect(hasAgyHooks()).toBe(false);
+  });
+});

@@ -173,3 +173,85 @@ describe('PTY nudge is a last resort', () => {
     expect(built.core.monitor.nudgeCount).toBe(0);
   });
 });
+
+describe('agy hook route (POST /bus/agy/hook)', () => {
+  let g: string;
+  let h: string;
+  let capG: string;
+  let capH: string;
+  beforeAll(() => {
+    const { store, caps } = built.core;
+    const ws = store.getNode(a)!.workspaceId;
+    const mk = (title: string) =>
+      store.insertNode({
+        workspaceId: ws,
+        type: 'agent-terminal',
+        harness: 'agy',
+        title,
+        cwd: tmpdir(),
+        x: 0,
+        y: 0,
+        w: 1,
+        h: 1,
+        state: 'idle',
+        sessionRef: null,
+        yolo: false,
+        data: {},
+        summary: '',
+      }).id;
+    g = mk('G');
+    h = mk('H');
+    store.createEdge(ws, a, g);
+    capG = caps.issue(g, ws).capability;
+    capH = caps.issue(h, ws).capability;
+  });
+  const agyHook = (node: string, cap: string | null, event: string, payload = {}) =>
+    built.app.inject({
+      method: 'POST',
+      url: '/bus/agy/hook',
+      headers: {
+        host: '127.0.0.1:4791',
+        'x-switchyard-node': node,
+        ...(cap ? { 'x-switchyard-cap': cap } : {}),
+      },
+      payload: { event, payload },
+    });
+
+  it('requires the node capability; another node capability is refused with the same 401', async () => {
+    const none = await agyHook(g, null, 'Stop');
+    const spoof = await agyHook(g, capH, 'Stop');
+    const unknown = await agyHook('ghost', capG, 'Stop');
+    for (const r of [none, spoof, unknown]) expect(r.statusCode).toBe(401);
+    expect(spoof.body).toBe(unknown.body);
+  });
+
+  it('PreInvocation injects a reminder only while messages wait', async () => {
+    expect((await agyHook(g, capG, 'PreInvocation')).json()).toEqual({});
+    built.core.bus.sendMessage(a, { peerId: g, intent: 'notify', body: 'hello' });
+    const out = (await agyHook(g, capG, 'PreInvocation')).json();
+    expect(out.injectSteps[0].ephemeralMessage).toMatch(/1 new switchyard message is waiting/);
+    expect(built.core.store.getNode(g)!.state).toBe('working');
+    built.core.bus.checkInbox(g);
+  });
+
+  it('Stop continues only when fully idle with a pending request; cap of 3 per conversation', async () => {
+    built.core.bus.sendMessage(a, { peerId: g, intent: 'request', body: 'q' });
+    const conv = { conversationId: 'conv-1' };
+    expect((await agyHook(g, capG, 'Stop', { ...conv, fullyIdle: false })).json()).toEqual({});
+    expect(built.core.store.getNode(g)!.state).toBe('working');
+    const outs = [];
+    for (let i = 0; i < 4; i++)
+      outs.push((await agyHook(g, capG, 'Stop', { ...conv, fullyIdle: true })).json());
+    expect(outs.slice(0, 3).every((o) => o.decision === 'continue')).toBe(true);
+    expect(outs[3]).toEqual({});
+    built.core.bus.checkInbox(g);
+    expect((await agyHook(g, capG, 'Stop', { ...conv, fullyIdle: true })).json()).toEqual({});
+    expect(built.core.store.getNode(g)!.state).toBe('idle');
+    expect(built.core.store.getNode(g)!.sessionRef).toBe('conv-1');
+  });
+
+  it('delivery via agy hooks types nothing into any PTY', () => {
+    expect(writes).not.toHaveBeenCalled();
+    expect(built.core.monitor.nudgeCount).toBe(0);
+  });
+});

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { SWITCHYARD_HOME, BUS_MCP_ENTRY, HOOK_RELAY_ENTRY } from '../paths.js';
+import { SWITCHYARD_HOME, BUS_MCP_ENTRY, HOOK_AGY_ENTRY } from '../paths.js';
 import type {
   Harness,
   NodeCtx,
@@ -70,31 +70,47 @@ export function hasAgyMcpEntry(): boolean {
   }
 }
 
+const HOOKS_KEY = 'switchyard';
+const LEGACY_HOOKS_KEY = 'switchyard-status'; // written by earlier versions; removed together with ours
+
+/** The hook group Switchyard owns in agy's hooks.json (shape from agy's hooks docs). Exported for tests. */
+export function agyHooksEntry(): Record<string, unknown> {
+  const cmd = (ev: string) => `"${process.execPath}" "${HOOK_AGY_ENTRY}" ${ev}`;
+  return {
+    enabled: true,
+    // Permission/question prompts can wait for the human, so this one gets a long, explicit timeout.
+    PreToolUse: [
+      {
+        matcher: 'ask_permission|ask_question',
+        hooks: [{ type: 'command', command: cmd('PreToolUse'), timeout: 300 }],
+      },
+    ],
+    PreInvocation: [{ type: 'command', command: cmd('PreInvocation'), timeout: 10 }],
+    Stop: [{ type: 'command', command: cmd('Stop'), timeout: 10 }],
+  };
+}
+
 /** Opt-in only (Settings button): agy reads hooks from hooks.json files, not a per-process flag. */
 export function installAgyHooks(): void {
   const cfg = readJson(agyHooksConfigPath());
-  const cmd = (ev: string) => `"${process.execPath}" "${HOOK_RELAY_ENTRY}" agy - ${ev}`;
-  cfg['switchyard-status'] = {
-    SessionStart: [{ command: cmd('SessionStart'), timeout: 10 }],
-    PreInvocation: [{ command: cmd('PreInvocation'), timeout: 10 }],
-    PostToolUse: [{ matcher: '', hooks: [{ command: cmd('PostToolUse'), timeout: 10 }] }],
-    Stop: [{ command: cmd('Stop'), timeout: 10 }],
-  };
+  delete cfg[LEGACY_HOOKS_KEY];
+  cfg[HOOKS_KEY] = agyHooksEntry();
   writeJson(agyHooksConfigPath(), cfg);
 }
 
 export function removeAgyHooks(): boolean {
   if (!existsSync(agyHooksConfigPath())) return false;
   const cfg = readJson(agyHooksConfigPath());
-  if (!('switchyard-status' in cfg)) return false;
-  delete cfg['switchyard-status'];
+  if (!(HOOKS_KEY in cfg) && !(LEGACY_HOOKS_KEY in cfg)) return false;
+  delete cfg[HOOKS_KEY];
+  delete cfg[LEGACY_HOOKS_KEY];
   writeJson(agyHooksConfigPath(), cfg);
   return true;
 }
 
 export function hasAgyHooks(): boolean {
   try {
-    return 'switchyard-status' in readJson(agyHooksConfigPath());
+    return HOOKS_KEY in readJson(agyHooksConfigPath());
   } catch {
     return false;
   }

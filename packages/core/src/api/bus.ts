@@ -176,6 +176,18 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
     }),
   );
   app.post(
+    '/bus/agy/hook',
+    wrap((req, self) => {
+      const b = z
+        .object({
+          event: z.string().max(64),
+          payload: z.record(z.string(), z.unknown()).optional(),
+        })
+        .parse(req.body);
+      return core.hooks.agy(self, b.event, b.payload ?? {});
+    }),
+  );
+  app.post(
     '/bus/hook',
     wrap((req, self) => {
       const b = z
