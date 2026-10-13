@@ -36,6 +36,9 @@ describe('claude adapter', () => {
     const arg = (flag: string) => l.args[l.args.indexOf(flag) + 1]!;
     const mcp = JSON.parse(arg('--mcp-config'));
     expect(mcp.mcpServers.switchyard.env.SWITCHYARD_NODE).toBe('node123');
+    // The capability itself never travels in env: only the path of the node's 0600 run file does.
+    expect(mcp.mcpServers.switchyard.env.SWITCHYARD_CAPFILE).toMatch(/\/run\/node123\.json$/);
+    expect(JSON.stringify(mcp)).not.toMatch(/capability/);
     expect(mcp.mcpServers.switchyard.args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
     expect(mcp.mcpServers.switchyard.args).toContain('--max-old-space-size=64');
     const settings = JSON.parse(arg('--settings'));
@@ -178,6 +181,11 @@ describe('agy adapter', () => {
     expect(Object.keys(cfg.mcpServers).sort()).toEqual(['other', 'switchyard']);
     expect(cfg.extra).toBe(1);
     expect(cfg.mcpServers.switchyard.args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
+    // agy may or may not expand $VAR in env; bus-mcp treats the literal as unset (per-cwd identity file instead).
+    expect(cfg.mcpServers.switchyard.env).toMatchObject({
+      SWITCHYARD_NODE: '$SWITCHYARD_NODE',
+      SWITCHYARD_CAPFILE: '$SWITCHYARD_CAPFILE',
+    });
     removeAgyMcpEntry();
     expect(JSON.parse(readFileSync(p, 'utf8')).mcpServers).toEqual({ other: { command: 'x' } });
   });
@@ -197,6 +205,7 @@ describe('agy adapter', () => {
       cwd: tmpdir(),
     });
     expect(plain.env.SWITCHYARD_NODE).toBe('node123');
+    expect(plain.env.SWITCHYARD_CAPFILE).toMatch(/\/run\/node123\.json$/);
     expect(plain.args).not.toContain('--dangerously-skip-permissions');
     const yolo = agy.terminalLaunch({
       node: node({ harness: 'agy', yolo: true }),

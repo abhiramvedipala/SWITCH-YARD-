@@ -24,6 +24,11 @@ export interface RunFile {
 const DUMMY_SECRET = randomId(24);
 const BY_CWD_DIR = join(RUN_DIR, 'by-cwd');
 
+/** The node's 0600 run file; its absolute path goes to child processes as SWITCHYARD_CAPFILE. */
+export function runFilePath(nodeId: string): string {
+  return join(RUN_DIR, `${nodeId}.json`);
+}
+
 export function cwdKey(cwd: string): string {
   return createHash('sha256').update(resolve(cwd)).digest('hex').slice(0, 32);
 }
@@ -46,7 +51,7 @@ export class Capabilities {
     const capability = randomId(24);
     const hookSecret = randomId(24);
     const rf: RunFile = { nodeId, workspaceId, coreUrl: this.coreUrl, capability, hookSecret };
-    writeSecret(join(RUN_DIR, `${nodeId}.json`), JSON.stringify(rf));
+    writeSecret(runFilePath(nodeId), JSON.stringify(rf));
     this.caps.set(nodeId, capability);
     this.hookSecrets.set(nodeId, hookSecret);
     if (cwd) {
@@ -62,7 +67,7 @@ export class Capabilities {
   /** Re-load capabilities written before a core restart so already-running bus-mcp processes keep working. */
   restore(nodeIds: string[]): void {
     for (const id of nodeIds) {
-      const p = join(RUN_DIR, `${id}.json`);
+      const p = runFilePath(id);
       if (!existsSync(p)) continue;
       try {
         const rf = JSON.parse(readFileSync(p, 'utf8')) as RunFile;
@@ -97,7 +102,7 @@ export class Capabilities {
   revoke(nodeId: string): void {
     this.caps.delete(nodeId);
     this.hookSecrets.delete(nodeId);
-    rmSync(join(RUN_DIR, `${nodeId}.json`), { force: true });
+    rmSync(runFilePath(nodeId), { force: true });
     if (existsSync(BY_CWD_DIR)) {
       for (const f of readdirSync(BY_CWD_DIR)) {
         const p = join(BY_CWD_DIR, f);

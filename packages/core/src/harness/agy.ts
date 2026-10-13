@@ -44,8 +44,8 @@ function writeJson(path: string, obj: unknown): void {
 
 /**
  * Adds (or refreshes) only the `switchyard` entry in agy's global MCP config, leaving every other entry alone.
- * agy's docs don't say whether `env` values expand `$VAR`, so bus-mcp treats a literal "$SWITCHYARD_NODE"
- * as unset and falls back to the per-cwd identity file core writes for each agy node.
+ * agy's docs don't say whether `env` values expand `$VAR`, so bus-mcp treats a literal "$SWITCHYARD_CAPFILE" /
+ * "$SWITCHYARD_NODE" as unset and falls back to the per-cwd identity file core writes for each agy node.
  */
 export function ensureAgyMcpEntry(): void {
   const cfg = readJson(agyMcpConfigPath());
@@ -53,7 +53,11 @@ export function ensureAgyMcpEntry(): void {
   servers.switchyard = {
     command: process.execPath,
     args: [...LEAN_NODE_FLAGS, BUS_MCP_ENTRY],
-    env: { SWITCHYARD_HOME, SWITCHYARD_NODE: '$SWITCHYARD_NODE' },
+    env: {
+      SWITCHYARD_HOME,
+      SWITCHYARD_NODE: '$SWITCHYARD_NODE',
+      SWITCHYARD_CAPFILE: '$SWITCHYARD_CAPFILE',
+    },
   };
   writeJson(agyMcpConfigPath(), { ...cfg, mcpServers: servers });
 }

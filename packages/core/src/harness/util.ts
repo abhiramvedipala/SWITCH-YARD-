@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, delimiter } from 'node:path';
 import { SWITCHYARD_HOME, BUS_MCP_ENTRY } from '../paths.js';
+import { runFilePath } from '../auth/capability.js';
 
 /** Find an executable on PATH plus a few well-known install dirs (agy lands in ~/.local/bin). */
 export function which(bin: string): string | null {
@@ -129,15 +130,18 @@ export function runNdjson(
   });
 }
 
-/** Env every agent process gets so its bus-mcp child can find its identity. No secret-ish names. */
 /**
  * Every agent gets its own small helper process (the bus MCP server). Cap its heap so a few agents on a laptop
  * stay light; it only forwards small JSON calls, so 64 MB is plenty.
  */
 export const LEAN_NODE_FLAGS = ['--max-old-space-size=64'];
 
+/**
+ * Env every agent process gets so its bus-mcp/hook children can find their identity. Only names, paths and ids:
+ * the capability itself stays in the 0600 run file that SWITCHYARD_CAPFILE points at. No secret-ish names.
+ */
 export function busEnv(nodeId: string): Record<string, string> {
-  return { SWITCHYARD_NODE: nodeId, SWITCHYARD_HOME };
+  return { SWITCHYARD_NODE: nodeId, SWITCHYARD_HOME, SWITCHYARD_CAPFILE: runFilePath(nodeId) };
 }
 
 export function busMcpServerSpec(nodeId: string) {

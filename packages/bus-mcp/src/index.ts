@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { BusClient, BusHttpError, resolveNodeId } from './client.js';
 
 const NOT_ON_CANVAS =
-  'This process is not attached to a Switchyard node (no SWITCHYARD_NODE and no identity file for this folder). Start the agent from a Switchyard canvas to use these tools.';
+  'This process is not attached to a Switchyard node (no usable SWITCHYARD_CAPFILE, no SWITCHYARD_NODE and no identity file for this folder). Start the agent from a Switchyard canvas to use these tools.';
 
 function text(obj: unknown) {
   return {

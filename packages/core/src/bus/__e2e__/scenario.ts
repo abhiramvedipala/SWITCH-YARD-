@@ -7,6 +7,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connectBusMcp, type BusMcp } from '../../../../bus-mcp/src/mcp-client.js';
+import { runFilePath } from '../../auth/capability.js';
 
 export interface ScenarioResult {
   reply: { status: string; body: string };
@@ -37,9 +38,11 @@ export async function runBusScenario(log: (s: string) => void = () => {}): Promi
     log(`nodes: A=${A.id} B=${B.id} C=${C.id} (edge A-B only)`);
 
     const env = (id: string) => ({ SWITCHYARD_NODE: id, SWITCHYARD_HOME: home });
+    // B gets only the path of its 0600 run file (what core's busEnv passes); A and C the node id.
+    const capEnv = (id: string) => ({ SWITCHYARD_CAPFILE: runFilePath(id), SWITCHYARD_HOME: home });
     const [a, b, c] = await Promise.all([
       connectBusMcp(env(A.id)),
-      connectBusMcp(env(B.id)),
+      connectBusMcp(capEnv(B.id)),
       connectBusMcp(env(C.id)),
     ]);
     clients.push(a, b, c);

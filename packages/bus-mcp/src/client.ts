@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -19,12 +19,51 @@ function cwdKey(cwd: string): string {
   return createHash('sha256').update(resolve(cwd)).digest('hex').slice(0, 32);
 }
 
+/** Why SWITCHYARD_CAPFILE may not be trusted, or null if it is a private regular file of ours. */
+export function capFileProblem(path: string): string | null {
+  let st: ReturnType<typeof lstatSync>;
+  try {
+    st = lstatSync(path);
+  } catch {
+    return 'file does not exist';
+  }
+  if (!st.isFile()) return 'not a regular file';
+  const mode = st.mode & 0o777;
+  if (mode !== 0o600) return `mode ${mode.toString(8)} is not 0600`;
+  const uid = process.getuid?.();
+  if (uid !== undefined && st.uid !== uid) return 'owned by another user';
+  return null;
+}
+
 /**
- * Who am I? SWITCHYARD_NODE from the environment first (Claude passes it via --mcp-config env; agy nodes get it
- * on their PTY). A literal "$SWITCHYARD_NODE" means the host didn't expand it, so fall back to the identity file
- * core writes per agent cwd.
+ * The run file named by SWITCHYARD_CAPFILE, or null when it is unset, a literal "$…" (host did not expand it),
+ * or not a 0600 regular file owned by us (then we say why on stderr and the caller tries the next method).
+ * The capability is only ever read from this file, never from env content.
+ */
+export function capFile(): RunFile | null {
+  const p = process.env.SWITCHYARD_CAPFILE;
+  if (!p || p.startsWith('$')) return null;
+  const why = capFileProblem(p);
+  if (why) {
+    process.stderr.write(`switchyard: ignoring SWITCHYARD_CAPFILE (${why}): ${p}\n`);
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(p, 'utf8')) as RunFile;
+  } catch {
+    process.stderr.write(`switchyard: ignoring SWITCHYARD_CAPFILE (not JSON): ${p}\n`);
+    return null;
+  }
+}
+
+/**
+ * Who am I? The SWITCHYARD_CAPFILE run file first, then SWITCHYARD_NODE from the environment (Claude passes both
+ * via --mcp-config env; agy nodes get them on their PTY). A literal "$SWITCHYARD_NODE" means the host didn't
+ * expand it, so fall back to the identity file core writes per agent cwd.
  */
 export function resolveNodeId(cwd = process.cwd()): string | null {
+  const cf = capFile();
+  if (cf) return cf.nodeId;
   const env = process.env.SWITCHYARD_NODE;
   if (env && !env.startsWith('$')) return env;
   const p = join(switchyardHome(), 'run', 'by-cwd', `${cwdKey(cwd)}.json`);
@@ -39,6 +78,13 @@ export function resolveNodeId(cwd = process.cwd()): string | null {
 }
 
 export function loadRunFile(nodeId: string): RunFile {
+  const cf = capFile();
+  if (cf) {
+    // A process handed node B's file is B; it cannot borrow A's identity by naming it.
+    if (cf.nodeId !== nodeId)
+      throw new Error(`SWITCHYARD_CAPFILE belongs to node ${cf.nodeId}, not ${nodeId}`);
+    return cf;
+  }
   const p = join(switchyardHome(), 'run', `${nodeId}.json`);
   if (!existsSync(p))
     throw new Error(`no Switchyard run file for node ${nodeId} (is the Switchyard core running?)`);
