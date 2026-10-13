@@ -258,10 +258,24 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [ ] **F8** persistent agy driven sessions (skipped for now)
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
 - [x] **F10** remote hardening: Funnel refused (403); every Serve request must carry `tailscale-user-login`, confirmed with `tailscale whois --json <last x-forwarded-for ip>` (injectable runner, 60 s per-IP cache, fail closed + rate-limited log when the CLI is missing); first verified login pinned as `remoteOwnerLogin`, clearable only on the computer (Settings → Forget); `*.ts.net` socket origin accepted only for a verified remote. Real Tailscale → owner to-do.
-- [ ] **F11** background-session spike (skipped)
+- [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [ ] **F12** polish: code-splitting only so far
 
 **Check inventory (2026-10-13 evening, master):** lint clean · 169 vitest · e2e 13 PASS lines · 40 ui-checks · selftest 66 MB / 0.8 %. Run `npm run build` before `npx vitest run`: the e2e vitest file starts the built `bus-mcp/dist`, so a stale build fails it (seen once after the F6 merge).
+
+### F11: Claude nodes as background sessions (research only, no adoption)
+
+**What the installed `claude` 2.1.272 offers (from `--help`, no turns spent):** `claude --bg|--background` starts a session detached and prints an id; `claude attach <id|name>` opens it in the current terminal (← returns to the agent view, Ctrl+Z drops back to the shell, the session keeps running either way); `claude logs|stop|rm <id>`; `claude agents --json [--all]` prints active (and completed) sessions as JSON without a TTY; `claude agents --mcp-config … --settings … --permission-mode … --add-dir …` apply to sessions dispatched from the agent view; `--bg --resume <id>` continues a session under the same id.
+**How Switchyard could use it:** a Claude node would become `claude --bg --name <node> --mcp-config <per-node> --settings <per-node hooks>` plus `claude attach <id>` inside the node's PTY. Benefits: the session survives a core restart and an accidental node close; `claude agents --json` gives state/status/waitingFor for free (a second authoritative status source next to the hooks); the attached PTY is only a view, so replay/resize bugs can't kill the agent. Costs: one more process per node (the agent-view supervisor), the hook URL/secret rotation on respawn no longer maps 1:1 to the process, worktree moves need `stop` + `--bg --resume`, and the PTY nudge/reply path goes through `attach`, whose key handling (← and Ctrl+Z are reserved) would need the reply escaping extended. Undocumented in `--help`: whether `--mcp-config`/`--settings` given to `claude --bg` itself (not `agents`) carry over, and the JSON field names of `claude agents --json` (`state`, `status`, `waitingFor` per the master plan).
+**Decision:** not adopted. Nothing changes until the two live turns below say the flags carry over; even then the gain (restart survival) is small for a single-user desktop app and the attach/reply path is the risky part.
+
+### OWNER CHECK F11 (optional, 2 tiny Claude turns, ≤ 10 min)
+
+1. `mkdir -p ~/.switchyard/scratch/f11 && cd ~/.switchyard/scratch/f11 && git init -q`
+2. `claude --bg --name sy-f11 "reply with the single word pong and stop"` → note the printed id.
+3. `claude agents --json --all` → paste the JSON object for `sy-f11` (the field names are what F11 wants).
+4. `claude attach sy-f11` → see the reply, then Ctrl+Z, then `claude stop sy-f11` and `claude rm sy-f11`.
+5. Paste back the JSON from step 3 and whether attach showed the session.
 
 ### F0: macOS bring-up (2026-10-13, Apple M3, 16 GB, macOS 27)
 
