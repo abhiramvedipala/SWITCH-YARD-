@@ -7,7 +7,7 @@ import type {
   TurnResult,
   NormalizedEvent,
 } from './types.js';
-import { runNdjson, busEnv } from './util.js';
+import { runNdjson, busEnv, LEAN_NODE_FLAGS } from './util.js';
 
 /**
  * A scripted stand-in agent: same bus-mcp server, same NDJSON plumbing, zero AI usage.
@@ -23,7 +23,7 @@ export const mock: Harness = {
   terminalLaunch(ctx: NodeCtx): TerminalLaunch {
     return {
       cmd: process.execPath,
-      args: [MOCK_AGENT_ENTRY],
+      args: [...LEAN_NODE_FLAGS, MOCK_AGENT_ENTRY],
       env: busEnv(ctx.node.id),
       cwd: ctx.cwd,
     };

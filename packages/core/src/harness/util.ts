@@ -130,6 +130,12 @@ export function runNdjson(
 }
 
 /** Env every agent process gets so its bus-mcp child can find its identity. No secret-ish names. */
+/**
+ * Every agent gets its own small helper process (the bus MCP server). Cap its heap so a few agents on a laptop
+ * stay light; it only forwards small JSON calls, so 64 MB is plenty.
+ */
+export const LEAN_NODE_FLAGS = ['--max-old-space-size=64'];
+
 export function busEnv(nodeId: string): Record<string, string> {
   return { SWITCHYARD_NODE: nodeId, SWITCHYARD_HOME };
 }
@@ -137,7 +143,7 @@ export function busEnv(nodeId: string): Record<string, string> {
 export function busMcpServerSpec(nodeId: string) {
   return {
     command: process.execPath,
-    args: [BUS_MCP_ENTRY],
+    args: [...LEAN_NODE_FLAGS, BUS_MCP_ENTRY],
     env: busEnv(nodeId),
   };
 }

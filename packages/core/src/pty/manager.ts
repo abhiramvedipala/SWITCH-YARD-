@@ -2,7 +2,8 @@ import * as pty from 'node-pty';
 import { hub } from '../events.js';
 
 const MAX_LINES = 10_000;
-const MAX_BYTES = 4 * 1024 * 1024;
+// Per terminal. 10k lines is the real limit; this only bounds pathological output (huge ANSI-heavy lines).
+const MAX_BYTES = 2 * 1024 * 1024;
 
 export interface SpawnSpec {
   cmd: string;

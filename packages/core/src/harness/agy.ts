@@ -10,7 +10,15 @@ import type {
   TurnResult,
   NormalizedEvent,
 } from './types.js';
-import { which, runCapture, runNdjson, busEnv, coordinationBlurb, extractJson } from './util.js';
+import {
+  which,
+  runCapture,
+  runNdjson,
+  busEnv,
+  coordinationBlurb,
+  extractJson,
+  LEAN_NODE_FLAGS,
+} from './util.js';
 import { geminiDir } from './agy-settings.js';
 
 export const agyMcpConfigPath = () => join(geminiDir(), 'config/mcp_config.json');
@@ -44,7 +52,7 @@ export function ensureAgyMcpEntry(): void {
   const servers = (cfg.mcpServers as Record<string, unknown> | undefined) ?? {};
   servers.switchyard = {
     command: process.execPath,
-    args: [BUS_MCP_ENTRY],
+    args: [...LEAN_NODE_FLAGS, BUS_MCP_ENTRY],
     env: { SWITCHYARD_HOME, SWITCHYARD_NODE: '$SWITCHYARD_NODE' },
   };
   writeJson(agyMcpConfigPath(), { ...cfg, mcpServers: servers });
