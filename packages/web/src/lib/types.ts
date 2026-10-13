@@ -155,6 +155,7 @@ export interface Run {
 export interface Settings {
   autoNudge: boolean;
   remoteReadOnly: boolean;
+  remoteOwnerLogin: string;
   projectChatHarness: HarnessId;
   runTestsForEvidence: boolean;
   allowedTools: string[];

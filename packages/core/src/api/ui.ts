@@ -52,6 +52,7 @@ const NODE_TYPES = ['terminal', 'agent-terminal', 'agent-chat', 'note', 'doc', '
 export const SETTINGS_DEFAULTS = {
   autoNudge: true,
   remoteReadOnly: true,
+  remoteOwnerLogin: '', // pinned by the first verified phone login; only clearable from the computer
   projectChatHarness: 'agy',
   runTestsForEvidence: true,
   allowedTools: DEFAULT_ALLOWED_TOOLS,
@@ -124,6 +125,10 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
         if (!(k in SETTINGS_DEFAULTS)) throw new Error(`unknown setting ${k}`);
         if (k === 'remoteReadOnly' && deps.isRemote(req))
           throw new Error('remote read-only can only be changed on the computer itself');
+        if (k === 'remoteOwnerLogin' && (deps.isRemote(req) || v !== ''))
+          throw new Error(
+            'the remote owner is pinned by the first verified phone login; it can only be cleared, on the computer itself',
+          );
         setSetting(core.db, k, v);
       }
       return { ok: true };

@@ -194,6 +194,21 @@ export function SettingsModal() {
             replying to prompts{' '}
             {remote && <span className="muted">(change this on the computer)</span>}
           </label>
+          {settings.remoteOwnerLogin && (
+            <div className="row">
+              <span className="small">
+                Phone access is pinned to <b>{settings.remoteOwnerLogin}</b> (the first tailnet
+                login that connected)
+              </span>
+              <button
+                className="btn btn-ghost btn-xs"
+                disabled={remote}
+                onClick={() => save({ remoteOwnerLogin: '' })}
+              >
+                Forget
+              </button>
+            </div>
+          )}
           <div className="row wrap">
             <label>
               Ask Switchyard uses
