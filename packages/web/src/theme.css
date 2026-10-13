@@ -89,3 +89,112 @@ textarea {
 .empty-card {
   border-radius: var(--r-modal);
 }
+
+/* ---------------------------------------------------------------- motion (iNotch: open 0.42/0.80 spring, close 0.35, hover 1.022, press 0.965) */
+:root {
+  --ease-open: cubic-bezier(0.2, 0.9, 0.3, 1.12);
+  --ease-close: cubic-bezier(0.3, 0.8, 0.3, 1);
+  --t-hover: 220ms;
+  --t-press: 160ms;
+}
+
+.btn,
+.icon-btn,
+.tab,
+.key,
+.menu button,
+.add-grid button,
+.palette-list button,
+.dir,
+.card,
+.attn,
+.node,
+.mobile-node {
+  transition:
+    transform var(--t-hover) var(--ease-open),
+    background-color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+.btn:hover:not(:disabled),
+.icon-btn:hover,
+.key:hover,
+.add-grid button:hover {
+  transform: scale(1.022);
+}
+.btn:active:not(:disabled),
+.icon-btn:active,
+.key:active,
+.tab:active,
+.menu button:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+  transition-duration: var(--t-press);
+}
+.btn:disabled {
+  opacity: 0.4;
+}
+.tab:hover,
+.menu button:hover,
+.palette-list button:hover,
+.dir:hover {
+  background: var(--fill-hover);
+}
+.tab.active {
+  background: var(--fill-selected);
+}
+
+/* Overlays open like iNotch's island: the shape grows first, content follows. */
+@keyframes sy-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes sy-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal,
+.palette {
+  animation: sy-pop 260ms var(--ease-open) both;
+}
+.modal-backdrop {
+  animation: sy-fade 160ms ease both;
+}
+.menu,
+.toast {
+  animation: sy-pop 180ms var(--ease-open) both;
+  transform-origin: top right;
+}
+.side {
+  animation: sy-fade 200ms 60ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:hover:not(:disabled),
+  .icon-btn:hover,
+  .key:hover,
+  .add-grid button:hover,
+  .btn:active:not(:disabled),
+  .icon-btn:active {
+    transform: none;
+  }
+}
