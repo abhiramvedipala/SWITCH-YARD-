@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:ui": "npm run build && node scripts/ui-check.mjs",
-    "stop": "node scripts/stop.mjs"
+    "stop": "node scripts/stop.mjs",
+    "mac:app": "bash scripts/mac/make-app.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
