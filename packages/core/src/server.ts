@@ -5,6 +5,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { loadOrCreateUiToken, constantTimeEqual } from './auth/token.js';
+import { createRemoteVerifier, type WhoisRunner } from './auth/remote.js';
 import { SWITCHYARD_HOME, WEB_DIST_DIR } from './paths.js';
 import { createCore, type Core } from './core.js';
 import { registerBusRoutes } from './api/bus.js';
@@ -54,7 +55,9 @@ class LoginLimiter {
   }
 }
 
-export async function buildServer(opts: { port?: number; dbPath?: string; quiet?: boolean } = {}) {
+export async function buildServer(
+  opts: { port?: number; dbPath?: string; quiet?: boolean; whois?: WhoisRunner } = {},
+) {
   const port = opts.port ?? Number(process.env.SWITCHYARD_PORT ?? 4777);
   const { token, created } = loadOrCreateUiToken();
   if (created && !opts.quiet) {
@@ -65,6 +68,7 @@ export async function buildServer(opts: { port?: number; dbPath?: string; quiet?
   const coreUrl = `http://${HOST}:${port}`;
   const core: Core = createCore({ dbPath: opts.dbPath, coreUrl });
   const isRemote = (req: FastifyRequest) => isRemoteRequest(req, port);
+  const verifyRemote = createRemoteVerifier(core.db, opts.whois, opts.quiet ? () => {} : undefined);
   const limiter = new LoginLimiter();
 
   const app = Fastify({ logger: false, bodyLimit: 8 * 1024 * 1024 });
@@ -78,16 +82,23 @@ export async function buildServer(opts: { port?: number; dbPath?: string; quiet?
     return constantTimeEqual(authHeader.slice('Bearer '.length).trim(), token);
   };
 
-  // Tailscale Funnel publishes to the open internet; Switchyard is tailnet-only (Serve), so refuse it outright.
-  app.addHook('onRequest', async (req, reply) => {
-    if (isFunnelRequest(req))
-      return reply.code(403).send({ error: 'funnel traffic is not allowed' });
-  });
-
+  // Bearer token first: unauthenticated probes never reach the (process-spawning) whois check below.
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/') || req.url === '/api/auth/login') return;
     if (!isAuthorized(req.headers.authorization))
       return reply.code(401).send({ error: 'unauthorized' });
+  });
+
+  // Tailscale Funnel publishes to the open internet; Switchyard is tailnet-only (Serve), so refuse it outright.
+  // Every other remote request (static files, /api/auth/login and the /ws upgrade alike) must carry a
+  // tailnet identity that `tailscale whois` confirms and that matches the pinned owner; otherwise 403
+  // before any route runs.
+  app.addHook('onRequest', async (req, reply) => {
+    if (isFunnelRequest(req))
+      return reply.code(403).send({ error: 'funnel traffic is not allowed' });
+    if (!isRemote(req)) return;
+    const verdict = await verifyRemote(req);
+    if (!verdict.ok) return reply.code(403).send({ error: verdict.reason });
   });
 
   app.post<{ Body: { token?: string } }>('/api/auth/login', async (req, reply) => {

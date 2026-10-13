@@ -40,6 +40,16 @@ writeFileSync(
 );
 
 // Override so several checkouts can run the check at the same time.
+// A fake `tailscale` first on PATH: remote (forwarded) requests are verified with `tailscale whois`
+// and the real binary must never run from a check.
+const fakeBin = mkdtempSync(join(tmpdir(), 'sy-ui-bin-'));
+const phoneLogin = 'phone@example.com';
+writeFileSync(
+  join(fakeBin, 'tailscale'),
+  `#!/bin/sh\n[ "$1" = whois ] || exit 2\necho '{"Node":{"Name":"phone"},"UserProfile":{"LoginName":"${phoneLogin}"}}'\n`,
+  { mode: 0o755 },
+);
+
 const port = Number(process.env.SWITCHYARD_UI_CHECK_PORT ?? 4799);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js')], {
@@ -51,6 +61,7 @@ const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js
     SWITCHYARD_SCRATCH_ROOT: join(root, 'scratch'),
     // Test-only knob (default 590 s): the F5 timeout check waits for a permission request to expire.
     SWITCHYARD_PERMISSION_TIMEOUT_MS: '1500',
+    PATH: `${fakeBin}:${process.env.PATH}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -500,7 +511,25 @@ try {
   await page.keyboard.press('Escape');
 
   // ---------------- Phase 8: remote/mobile view is read-only but can answer
-  const remoteHeaders = { 'X-Forwarded-For': '100.101.102.103' };
+  const remoteHeaders = {
+    'X-Forwarded-For': '100.101.102.103',
+    'Tailscale-User-Login': phoneLogin,
+  };
+  const noIdentity = await api('GET', '/api/attention', null, {
+    'X-Forwarded-For': '100.101.102.103',
+  });
+  check(
+    noIdentity.status === 403,
+    `P8 forwarded request without a tailnet identity is refused (HTTP ${noIdentity.status})`,
+  );
+  const spoofed = await api('GET', '/api/attention', null, {
+    ...remoteHeaders,
+    'Tailscale-User-Login': 'intruder@example.com',
+  });
+  check(
+    spoofed.status === 403,
+    `P8 login header that whois does not confirm is refused (HTTP ${spoofed.status})`,
+  );
   const blocked = await api(
     'POST',
     `/api/workspaces/${ws.id}/nodes`,
@@ -542,7 +571,11 @@ try {
       (
         await fetch(base + '/api/auth/login', {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'X-Forwarded-For': '9.9.9.9' },
+          headers: {
+            'content-type': 'application/json',
+            'X-Forwarded-For': '9.9.9.9',
+            'Tailscale-User-Login': phoneLogin,
+          },
           body: '{"token":"x"}',
         })
       ).status,

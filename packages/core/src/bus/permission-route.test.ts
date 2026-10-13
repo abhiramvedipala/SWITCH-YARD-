@@ -12,7 +12,12 @@ beforeAll(async () => {
   process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-perm-home-'));
   process.env.SWITCHYARD_PERMISSION_TIMEOUT_MS = '5000'; // tests only; real waits are 590 s / 290 s
   const { buildServer } = await import('../server.js');
-  built = await buildServer({ port: 4792, dbPath: ':memory:', quiet: true });
+  built = await buildServer({
+    port: 4792,
+    dbPath: ':memory:',
+    quiet: true,
+    whois: async () => 'phone@example.com', // F10: remote requests must be whois-verified; never spawn tailscale
+  });
   const ws = built.core.store.createWorkspace('t', tmpdir());
   nodeId = built.core.store.insertNode({
     workspaceId: ws.id,
@@ -233,7 +238,10 @@ describe('permission items in the attention feed and the decide API', () => {
   });
 
   it('a read-only remote session may still decide, but cannot do other writes', async () => {
-    const remote = { 'x-forwarded-for': '100.101.102.103' };
+    const remote = {
+      'x-forwarded-for': '100.101.102.103',
+      'tailscale-user-login': 'phone@example.com',
+    };
     const pending = send(bash);
     await until(() => built.core.permissions.open().length === 1);
     const ok = await api(
