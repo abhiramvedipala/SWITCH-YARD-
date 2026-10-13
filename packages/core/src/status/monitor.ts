@@ -5,6 +5,12 @@ import { getHarness } from '../harness/index.js';
 import { getSetting } from '../db/index.js';
 
 const QUIET_MS = 8_000;
+const NEEDS_INPUT_NOTIFICATIONS = new Set([
+  'permission_prompt',
+  'elicitation_dialog',
+  'elicitation_url_dialog',
+  'agent_needs_input',
+]);
 const NUDGE_THROTTLE_MS = 30_000;
 
 /* eslint-disable no-control-regex -- matching terminal escape sequences is the point */
@@ -161,21 +167,24 @@ export class StatusMonitor {
         this.set(nodeId, 'idle');
         break;
       case 'UserPromptSubmit':
+      case 'PreToolUse':
       case 'PostToolUse':
       case 'PreInvocation':
         this.set(nodeId, 'working');
         break;
       case 'Notification': {
+        // Only these types mean "a human has to act". Anything else (auth_success, quota_*, elicitation_complete,
+        // elicitation_response, unknown future types) must not flip the node to needs_input.
         const t = String(payload.notification_type ?? '');
         if (t === 'idle_prompt' || t === 'agent_completed') this.set(nodeId, 'idle');
-        else if (
-          t !== 'auth_success' &&
-          !t.startsWith('quota_') &&
-          t !== 'elicitation_complete' &&
-          t !== 'elicitation_response'
-        ) {
-          this.set(nodeId, 'needs_input');
-        }
+        else if (NEEDS_INPUT_NOTIFICATIONS.has(t)) this.set(nodeId, 'needs_input');
+        break;
+      }
+      case 'StopFailure': {
+        // The turn ended with an API error: idle again, but remember why so the UI can show it.
+        const err = String(payload.error ?? payload.error_type ?? 'error').slice(0, 120);
+        this.store.updateNode(nodeId, { data: { ...node.data, lastError: err } }, { silent: true });
+        this.set(nodeId, 'idle');
         break;
       }
       case 'Stop':
