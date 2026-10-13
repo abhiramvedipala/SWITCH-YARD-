@@ -14,6 +14,7 @@ export const REPO_ROOT = resolve(here, '../../..');
 export const WEB_DIST_DIR = join(REPO_ROOT, 'packages/web/dist');
 export const BUS_MCP_ENTRY = join(REPO_ROOT, 'packages/bus-mcp/dist/index.js');
 export const HOOK_RELAY_ENTRY = join(REPO_ROOT, 'packages/bus-mcp/dist/hook.js');
+export const HOOK_AGY_ENTRY = join(REPO_ROOT, 'packages/bus-mcp/dist/hook-agy.js');
 export const MOCK_AGENT_ENTRY = join(REPO_ROOT, 'packages/bus-mcp/dist/mock-agent.js');
 
 export function ensureDirs(): void {
