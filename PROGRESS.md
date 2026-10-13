@@ -38,17 +38,17 @@ phase's DoD was still checked, as listed below.
 
 ## How each DoD was verified
 
-| Phase | Check | How |
-|---|---|---|
-| 0 | login page → empty canvas after token | `scripts/ui-check.mjs` (headless Chromium) + curl walkthrough; socket confirmed bound to 127.0.0.1 |
-| 1 | run a command, reload, output still there | ui-check: types `echo hello-$((40+2))-switchyard` into xterm, reloads, finds `hello-42-switchyard` |
-| 2 | 3 nodes + 2 edges, reload → identical | ui-check: nodes added via the UI menu, edges via the API; after reload counts, positions and note text match. Also checks `F`/`Esc` focus and the `Ctrl+K` palette |
-| 3 | A request → B inbox → B response → A wait_for_reply; unconnected C sees nothing | `npm run test:e2e` / vitest: real core HTTP server + three real `bus-mcp` processes over MCP stdio. Also in the browser with two mock terminal agents |
-| 4 | ask_user shows in Needs you ≤ 2 s and can be answered | ui-check: appears ~100 ms after the mock asks; the sidebar answer reaches the agent's terminal |
-| 5 | UI task → claim → In progress → complete → Done | ui-check: card moves columns as the mock agent claims and completes it |
-| 6 | demo run in scratch with one review round changing something | e2e + ui-check: mock plan → build → review requests a docstring and type hints → builder fixes → approved in round 2; result card shows `python3 -m pytest -q → passed` |
-| 7 | resume a real Claude Code session | listing verified with a fixture transcript in ui-check; resuming needs real `claude` → owner to-do |
-| 8 | answer ask_user from a phone over Tailscale | ui-check: 390×844 mobile context with forwarded headers gets the read-only phone layout, writes return 403, answering works, login hits 429 after 8 attempts. Real Tailscale → owner to-do |
+| Phase | Check                                                                           | How                                                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0     | login page → empty canvas after token                                           | `scripts/ui-check.mjs` (headless Chromium) + curl walkthrough; socket confirmed bound to 127.0.0.1                                                                                         |
+| 1     | run a command, reload, output still there                                       | ui-check: types `echo hello-$((40+2))-switchyard` into xterm, reloads, finds `hello-42-switchyard`                                                                                         |
+| 2     | 3 nodes + 2 edges, reload → identical                                           | ui-check: nodes added via the UI menu, edges via the API; after reload counts, positions and note text match. Also checks `F`/`Esc` focus and the `Ctrl+K` palette                         |
+| 3     | A request → B inbox → B response → A wait_for_reply; unconnected C sees nothing | `npm run test:e2e` / vitest: real core HTTP server + three real `bus-mcp` processes over MCP stdio. Also in the browser with two mock terminal agents                                      |
+| 4     | ask_user shows in Needs you ≤ 2 s and can be answered                           | ui-check: appears ~100 ms after the mock asks; the sidebar answer reaches the agent's terminal                                                                                             |
+| 5     | UI task → claim → In progress → complete → Done                                 | ui-check: card moves columns as the mock agent claims and completes it                                                                                                                     |
+| 6     | demo run in scratch with one review round changing something                    | e2e + ui-check: mock plan → build → review requests a docstring and type hints → builder fixes → approved in round 2; result card shows `python3 -m pytest -q → passed`                    |
+| 7     | resume a real Claude Code session                                               | listing verified with a fixture transcript in ui-check; resuming needs real `claude` → owner to-do                                                                                         |
+| 8     | answer ask_user from a phone over Tailscale                                     | ui-check: 390×844 mobile context with forwarded headers gets the read-only phone layout, writes return 403, answering works, login hits 429 after 8 attempts. Real Tailscale → owner to-do |
 
 Unit tests (33) cover message semantics (edge scoping, durability across DB
 reopen, request/response correlation, expiry, claim atomicity, dependencies,
@@ -58,6 +58,22 @@ entries, refuses to overwrite unparseable JSON), session/export parsers, and the
 WebSocket origin and remote-detection rules.
 
 ## Owner to-do (exact steps)
+
+### OWNER CHECK F0 — install and sign in to Antigravity (`agy` is not on this Mac)
+
+1. In Terminal: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
+2. Open a **new** terminal window (so `~/.local/bin` is on PATH), run `agy`, sign in with your Google account in the browser, then `/quit`.
+3. Run: `agy -p "reply with the single word pong" --output-format json`
+   Success looks like a JSON object with `"status": "SUCCESS"` and `"response": "pong"`.
+4. Paste back: the output of `agy --version` and that JSON.
+
+### OWNER CHECK F1 — agy env-inheritance probe (one small agy request)
+
+1. From the repo folder: `node scripts/probe-agy-env.mjs`
+   It builds a temp folder with workspace-level `.agents/hooks.json` and `.agents/mcp_config.json`, runs one `agy -p` there, and deletes the folder. Your global agy config is not touched.
+2. Paste back the block between `=== F1 PROBE SUMMARY ===` and `=====`.
+   Success looks like `hookRan: true`, `mcpStarted: true`, `toolCalled: true`, and each env line saying `inherited ✅`, `literal "$…"` or `unset`.
+   If the tool call was blocked by a permission prompt, `toolCalled` is false; say so, that is also a result.
 
 Setup on the Mac:
 
@@ -150,11 +166,13 @@ npm start                     # note the token it prints
 ## Phase log
 
 ### Phase 0: Scaffold (commit `phase 0`)
+
 npm workspaces; Fastify core on 127.0.0.1:4777 with a one-time UI token;
 React/Vite login page → empty canvas; ESLint, Prettier and Vitest.
 Try it: `npm start`, then paste the printed token.
 
 ### Phases 1–8 (one commit)
+
 **What changed:** core-owned PTYs with 10k-line replay; React Flow canvas with
 terminal, agent-terminal, agent-chat, note, doc and browser nodes, edges,
 minimap, `⌘K`, focus mode and persisted layout; `bus-mcp` with 13 tools;
@@ -172,24 +190,33 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 
 ## F-phases (SWITCHYARD_FINAL_PROMPT.md)
 
-- [x] **F0** macOS bring-up (done by the owner session)
-- [ ] **F1** agy environment probe (needs real agy; owner check pending)
+- [x] **F0** macOS bring-up: done on the owner's Mac 2026-10-13 (see "F0: macOS bring-up" below)
+- [ ] **F1** agy environment probe: `scripts/probe-agy-env.mjs` written; needs agy installed (OWNER CHECK F0/F1 below)
 - [x] **F2** run dirs out of the repo
 - [x] **F3** permissions so bus tools don't prompt
 - [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
 - [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; UI-check for the Allow/Deny card still to add)
 - [ ] **F6** identity and capability hygiene
-- [ ] **F7** sessions: agy conversation list
+- [x] **F7** sessions: agy conversation list from `~/.gemini/antigravity-cli/brain` (fixture tests)
 - [ ] **F8** persistent agy driven sessions (skipped for now)
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`; UI chips on node cards still to add)
 - [~] **F10** remote hardening: Funnel traffic refused with 403, remote detection via forwarding headers; `tailscale whois` verification still to do
 - [ ] **F11** background-session spike (skipped)
 - [ ] **F12** polish: code-splitting only so far
 
+### F0: macOS bring-up (2026-10-13, Apple M3, 16 GB, macOS 27)
+
+**Versions:** Node v22.23.3, npm 10.9.9, `claude` 2.1.272 (Claude Code), Xcode CLT at `/Library/Developer/CommandLineTools`, Python 3.14.6 + pytest 9.0.3, Playwright 1.64 with Chromium 1208 cached. `agy`: **not installed** (OWNER CHECK F0). `tailscale`: not installed.
+**What changed:** `npm install` succeeded with prebuilt binaries, but every PTY failed with `posix_spawnp failed`: node-pty 1.1.0's tarball ships `spawn-helper` without the exec bit, so `scripts/postinstall.mjs` restores it. The own-folder guard broke on `/var` → `/private/var` for not-yet-created subpaths (fixed in `paths.real()`); the e2e tests resolved `scratch/` from `process.cwd()` (now from the test file); ui-check now finds Playwright's cached Chromium or Google Chrome.
+**Results on arm64:** lint clean · 139 vitest · e2e (bus + mock run with real git evidence and `pytest` passing) · 27/27 ui-checks · selftest idle RSS 31 MB, CPU 0.7 %.
+**Note:** `claude` here is 2.1.272 (the container had 2.1.296). `--permission-prompts none` needs ≥ 2.1.259, so still fine; `claude --help` was not re-diffed against the adapter flags yet (done in the acceptance phase).
+
 ### F4: delivery without typing
+
 **What changed:** every Claude node gets an HTTP `Stop` hook (`/bus/hook/claude/<node>/<secret>`, per-node secret rotated with the capability); core answers with block / context / `{}` from the tested decision tables and stores `last_assistant_message` as the node summary. agy gets `hook-agy.js` + `POST /bus/agy/hook` (PreInvocation / Stop). The PTY nudge is last-resort only (off for Claude unless opted in, hook-driven or mock nodes only, never while needs_input, counted in `monitor.nudgeCount`). Human replies go through `pty/input.ts` (bracketed paste, `Reply: ` prefix, control chars stripped) and free text is refused while a node is in needs_input.
 **How to try it:** `cd packages/core && npx vitest run src/bus/hook-route.test.ts src/api/reply.test.ts src/pty`.
 
 ### Mac packaging, selftest
+
 **What changed:** `npm run mac:app` builds a script-based `Switchyard.app` (no Electron); PWA manifest for Add to Dock; `server.pid` + `npm run stop`; `npm run selftest` checks idle RSS/CPU budget (76 MB / 0.9% measured on Linux).
 **How to try it:** `npm run build && npm run selftest`.
