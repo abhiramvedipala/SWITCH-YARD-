@@ -1,0 +1,42 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-e2e-home-'));
+
+const { runBusScenario } = await import('./scenario.js');
+const { runRunsScenario } = await import('./runs-scenario.js');
+
+let failed = false;
+const check = (cond: boolean, msg: string) => {
+  console.log(`${cond ? 'PASS' : 'FAIL'}  ${msg}`);
+  if (!cond) failed = true;
+};
+
+console.log('== bus (Phase 3 DoD) ==');
+const r = await runBusScenario((s) => console.log(`  ${s}`));
+check(r.tools.length === 13, `bus-mcp exposes 13 tools (${r.tools.length})`);
+check(
+  r.reply.status === 'replied' && r.reply.body === 'pong',
+  'A received B\'s "pong" via wait_for_reply',
+);
+check(r.cPeers.length === 0, 'unconnected C sees no peers');
+check(r.cInbox.length === 0, 'unconnected C received nothing');
+check(/not_connected/.test(r.unconnectedError), 'C cannot message A');
+
+console.log('== runs (Phase 6 DoD, mock harness) ==');
+const run = await runRunsScenario((s) => console.log(`  ${s}`));
+check(run.status === 'done', `run finished (${run.status})`);
+check(
+  run.reviewRounds >= 2,
+  `review took ${run.reviewRounds} rounds (one round changed something)`,
+);
+check(run.approved === true, 'final review approved');
+check(
+  run.files.includes('hello.py') && run.files.includes('test_hello.py'),
+  `files touched: ${run.files.join(', ')}`,
+);
+check(run.helloHasDocstring, 'hello.py was changed by the review round (docstring added)');
+console.log(`  tests evidence: ${run.tests}`);
+
+process.exit(failed ? 1 : 0);

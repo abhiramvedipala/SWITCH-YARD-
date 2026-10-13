@@ -12,7 +12,7 @@ export function setToken(token: string): void {
   try {
     localStorage.setItem(TOKEN_KEY, token);
   } catch {
-    // localStorage unavailable (private mode etc.) — session just won't persist across reloads
+    // private mode: session won't persist across reloads
   }
 }
 
@@ -24,31 +24,63 @@ export function clearToken(): void {
   }
 }
 
-export async function login(token: string): Promise<boolean> {
+export async function login(token: string): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token }),
   });
-  if (!res.ok) return false;
-  const data = (await res.json()) as { ok: boolean };
+  if (res.status === 429)
+    return { ok: false, error: 'Too many attempts. Wait a minute and try again.' };
+  const data = (await res.json().catch(() => ({ ok: false }))) as { ok: boolean };
   if (data.ok) setToken(token);
-  return data.ok;
+  return { ok: !!data.ok, error: data.ok ? undefined : 'That token was not accepted.' };
 }
 
-export async function checkSession(): Promise<boolean> {
+export async function checkSession(): Promise<{
+  ok: boolean;
+  remote?: boolean;
+  readOnly?: boolean;
+}> {
   const token = getToken();
-  if (!token) return false;
-  const res = await fetch('/api/auth/check', {
-    headers: { Authorization: `Bearer ${token}` },
+  if (!token) return { ok: false };
+  const res = await fetch('/api/auth/check', { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return { ok: false };
+  return (await res.json()) as { ok: boolean; remote?: boolean; readOnly?: boolean };
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return res.ok;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status === 401) {
+    clearToken();
+    window.location.reload();
+  }
+  if (!res.ok) throw new ApiError(res.status, String(data.message ?? data.error ?? res.statusText));
+  return data as T;
 }
 
-/** fetch() wrapper that attaches the stored bearer token to every /api/ call. */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = getToken();
-  const headers = new Headers(init.headers);
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  return fetch(path, { ...init, headers });
-}
+export const api = {
+  get: <T>(path: string) => request<T>('GET', path),
+  post: <T>(path: string, body: unknown = {}) => request<T>('POST', path, body),
+  patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
+  put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
+  del: <T>(path: string) => request<T>('DELETE', path),
+};

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { login } from '../lib/api.js';
+import { Logo } from '../components/bits.js';
 
 export function Login({ onSuccess }: { onSuccess: () => void }) {
   const [token, setTokenInput] = useState('');
@@ -11,12 +12,9 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
     setError(null);
     setBusy(true);
     try {
-      const ok = await login(token.trim());
-      if (ok) {
-        onSuccess();
-      } else {
-        setError('That token was not accepted.');
-      }
+      const r = await login(token.trim());
+      if (r.ok) onSuccess();
+      else setError(r.error ?? 'That token was not accepted.');
     } finally {
       setBusy(false);
     }
@@ -25,9 +23,11 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Switchyard</h1>
+        <h1>
+          <Logo size={22} /> Switchyard
+        </h1>
         <p className="muted">
-          Enter the token printed in your terminal when core started (also saved to{' '}
+          Enter the token printed in your terminal when core first started (also saved to{' '}
           <code>~/.switchyard/ui-session</code>).
         </p>
         <input

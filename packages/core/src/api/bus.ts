@@ -1,0 +1,180 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import type { Core } from '../core.js';
+import { BusError } from '../bus/service.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    busNode?: string;
+  }
+}
+
+function fail(reply: FastifyReply, err: unknown) {
+  if (err instanceof BusError)
+    return reply.code(err.status).send({ error: err.code, message: err.message });
+  if (err instanceof z.ZodError)
+    return reply
+      .code(400)
+      .send({
+        error: 'invalid_input',
+        message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      });
+  return reply
+    .code(500)
+    .send({ error: 'internal', message: String((err as Error).message ?? err) });
+}
+
+const sendSchema = z.object({
+  peerId: z.string().min(1),
+  intent: z.enum(['notify', 'request', 'response']),
+  body: z
+    .string()
+    .min(1)
+    .max(64 * 1024),
+  responseTo: z.string().optional(),
+  expiresInSec: z
+    .number()
+    .int()
+    .positive()
+    .max(7 * 24 * 3600)
+    .optional(),
+});
+
+/** Routes bus-mcp calls on behalf of one agent node. Authenticated by that node's capability, never the UI token. */
+export function registerBusRoutes(app: FastifyInstance, core: Core): void {
+  const { bus } = core;
+
+  app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.url.startsWith('/bus/')) return;
+    const nodeId = req.headers['x-switchyard-node'];
+    const cap = req.headers['x-switchyard-cap'];
+    if (typeof nodeId !== 'string' || typeof cap !== 'string' || !core.caps.verify(nodeId, cap)) {
+      return reply.code(401).send({ error: 'unauthorized', message: 'bad node capability' });
+    }
+    req.busNode = nodeId;
+  });
+
+  const wrap =
+    (fn: (req: FastifyRequest, self: string) => unknown) =>
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      try {
+        return reply.send(await fn(req, req.busNode!));
+      } catch (err) {
+        return fail(reply, err);
+      }
+    };
+
+  app.get(
+    '/bus/whoami',
+    wrap((_req, self) => {
+      const n = core.store.getNode(self)!;
+      return { nodeId: n.id, title: n.title, workspaceId: n.workspaceId, harness: n.harness };
+    }),
+  );
+  app.get(
+    '/bus/peers',
+    wrap((_req, self) => ({ peers: bus.listPeers(self) })),
+  );
+  app.get(
+    '/bus/peers/:peerId',
+    wrap((req, self) => bus.getPeerContext(self, (req.params as { peerId: string }).peerId)),
+  );
+  app.post(
+    '/bus/messages',
+    wrap((req, self) => bus.sendMessage(self, sendSchema.parse(req.body))),
+  );
+  app.post(
+    '/bus/inbox',
+    wrap((req, self) => {
+      const { markRead } = z.object({ markRead: z.boolean().optional() }).parse(req.body ?? {});
+      return { messages: bus.checkInbox(self, markRead ?? true) };
+    }),
+  );
+  app.post(
+    '/bus/wait-reply',
+    wrap((req, self) => {
+      const b = z
+        .object({ messageId: z.string(), timeoutSec: z.number().min(0).max(600) })
+        .parse(req.body);
+      return bus.waitForReply(self, b.messageId, b.timeoutSec);
+    }),
+  );
+  app.post(
+    '/bus/summary',
+    wrap((req, self) =>
+      bus.publishSummary(self, z.object({ text: z.string().max(800) }).parse(req.body).text),
+    ),
+  );
+  app.get(
+    '/bus/tasks',
+    wrap((req, self) => ({
+      tasks: bus.listTasksFor(self, (req.query as { status?: string }).status),
+    })),
+  );
+  app.post(
+    '/bus/tasks',
+    wrap((req, self) => {
+      const b = z
+        .object({
+          title: z.string().min(1).max(300),
+          body: z.string().max(20_000).optional(),
+          dependsOn: z.array(z.string()).optional(),
+        })
+        .parse(req.body);
+      return bus.addTask(core.store.getNode(self)!.workspaceId, b, self);
+    }),
+  );
+  app.post(
+    '/bus/tasks/:taskId/claim',
+    wrap((req, self) => bus.claimTask(self, (req.params as { taskId: string }).taskId)),
+  );
+  app.post(
+    '/bus/tasks/:taskId/complete',
+    wrap((req, self) => {
+      const b = z.object({ result: z.string().max(20_000).optional() }).parse(req.body ?? {});
+      return bus.completeTask(self, (req.params as { taskId: string }).taskId, b.result);
+    }),
+  );
+  app.get(
+    '/bus/nodes/:nodeId/status',
+    wrap((req, self) => bus.getNodeStatus(self, (req.params as { nodeId: string }).nodeId)),
+  );
+  app.post(
+    '/bus/wait-nodes',
+    wrap((req, self) => {
+      const b = z
+        .object({ nodeIds: z.array(z.string()).min(1), timeoutSec: z.number().min(0).max(600) })
+        .parse(req.body);
+      return bus.waitForNodes(self, b.nodeIds, b.timeoutSec);
+    }),
+  );
+  app.post(
+    '/bus/ask',
+    wrap((req, self) => {
+      const b = z
+        .object({
+          question: z.string().max(4000).optional(),
+          questionId: z.string().optional(),
+          timeoutSec: z.number().min(0).max(600).optional(),
+        })
+        .parse(req.body);
+      if (!b.question && !b.questionId)
+        throw new BusError('missing_question', 'question or questionId is required');
+      return bus.askUser(self, b);
+    }),
+  );
+  app.post(
+    '/bus/hook',
+    wrap((req, self) => {
+      const b = z
+        .object({
+          harness: z.string(),
+          event: z.string(),
+          payload: z.record(z.string(), z.unknown()).optional(),
+        })
+        .parse(req.body);
+      core.monitor.onHook(self, b.harness, b.event, b.payload ?? {});
+      return { ok: true };
+    }),
+  );
+}

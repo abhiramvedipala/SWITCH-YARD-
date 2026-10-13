@@ -1,20 +1,13 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
+import { SWITCHYARD_HOME, ensureDirs } from '../paths.js';
 
-export const SWITCHYARD_HOME = join(homedir(), '.switchyard');
 const UI_SESSION_PATH = join(SWITCHYARD_HOME, 'ui-session');
 
-function ensureHome(): void {
-  if (!existsSync(SWITCHYARD_HOME)) {
-    mkdirSync(SWITCHYARD_HOME, { recursive: true, mode: 0o700 });
-  }
-}
-
-/** Loads the UI session token, generating and printing one on first run. */
+/** Loads the UI session token, generating one on first run. */
 export function loadOrCreateUiToken(): { token: string; created: boolean } {
-  ensureHome();
+  ensureDirs();
   if (existsSync(UI_SESSION_PATH)) {
     const token = readFileSync(UI_SESSION_PATH, 'utf8').trim();
     if (token.length > 0) return { token, created: false };
@@ -25,11 +18,14 @@ export function loadOrCreateUiToken(): { token: string; created: boolean } {
   return { token, created: true };
 }
 
+export function randomId(bytes = 12): string {
+  return randomBytes(bytes).toString('base64url');
+}
+
 export function constantTimeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) {
-    // still run a comparison of equal length to avoid an early-return timing leak
     timingSafeEqual(bufA, bufA);
     return false;
   }

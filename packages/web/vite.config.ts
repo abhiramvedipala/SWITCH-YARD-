@@ -6,5 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Served from localhost only; one bundle is simpler than chunking for a local tool.
+    chunkSizeWarningLimit: 2000,
   },
 });

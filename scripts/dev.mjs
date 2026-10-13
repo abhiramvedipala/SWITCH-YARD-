@@ -30,4 +30,5 @@ process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
 run('web', 'npm', ['run', 'dev', '-w', '@switchyard/web'], process.cwd());
+run('bus-mcp', 'npm', ['run', 'dev', '-w', '@switchyard/bus-mcp'], process.cwd());
 run('core', 'npm', ['run', 'dev', '-w', '@switchyard/core'], process.cwd());
