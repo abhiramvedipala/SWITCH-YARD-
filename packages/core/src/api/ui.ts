@@ -20,19 +20,17 @@ import { listClaudeSessions } from '../sessions/claude.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
 import { runCapture } from '../harness/util.js';
-import { REPO_ROOT } from '../paths.js';
+import { scratchRoot } from '../paths.js';
 import type { NodeType } from '../store.js';
 
 function fail(reply: FastifyReply, err: unknown) {
   if (err instanceof BusError)
     return reply.code(err.status).send({ error: err.code, message: err.message });
   if (err instanceof z.ZodError) {
-    return reply
-      .code(400)
-      .send({
-        error: 'invalid_input',
-        message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-      });
+    return reply.code(400).send({
+      error: 'invalid_input',
+      message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+    });
   }
   return reply.code(400).send({ error: 'failed', message: String((err as Error).message ?? err) });
 }
@@ -68,12 +66,10 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     if (!deps.isRemote(req) || !getSetting(core.db, 'remoteReadOnly', true)) return;
     const path = req.url.split('?')[0]!;
     if (REMOTE_WRITE_ALLOW.some((re) => re.test(path))) return;
-    return reply
-      .code(403)
-      .send({
-        error: 'read_only',
-        message: 'Remote access is read-only. Turn it off in Settings on the computer itself.',
-      });
+    return reply.code(403).send({
+      error: 'read_only',
+      message: 'Remote access is read-only. Turn it off in Settings on the computer itself.',
+    });
   });
 
   const h =
@@ -93,7 +89,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       remote: deps.isRemote(req),
       readOnly: deps.isRemote(req) && getSetting(core.db, 'remoteReadOnly', true),
       home: homedir(),
-      scratchDir: join(REPO_ROOT, 'scratch'),
+      scratchDir: scratchRoot(),
       platform: process.platform,
     })),
   );
