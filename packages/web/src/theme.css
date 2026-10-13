@@ -1,0 +1,91 @@
+/*
+ * Design tokens. Derived from iNotch's design language (see DECISIONS.md): near-black calm surfaces,
+ * white-alpha fills and hairline borders, a single cyan accent, SF system font, small type.
+ * This file loads after styles.css, so its :root values win. Change the look here, not in styles.css.
+ */
+:root {
+  --bg: #050506;
+  --bg-2: #0a0a0c;
+  --panel: #101012;
+  --panel-2: #17171a;
+  --border: rgba(255, 255, 255, 0.11);
+  --border-2: rgba(255, 255, 255, 0.16);
+  --text: #f5f5f7;
+  --muted: rgba(255, 255, 255, 0.6);
+  --accent: #59c7ff;
+  --accent-ink: #03202e;
+  --accent-2: #a78bfa;
+  --warn: #ffb340;
+  --danger: #ff6961;
+  --ok: #4cd964;
+  --fill-hover: rgba(255, 255, 255, 0.09);
+  --fill-selected: rgba(255, 255, 255, 0.12);
+  --radius: 14px;
+  --r-btn: 9px;
+  --r-card: 10px;
+  --r-modal: 18px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+
+html {
+  font-size: 13px;
+}
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.003em;
+  background: var(--bg);
+}
+
+/* Section labels: 10px, uppercase, tracked (as in iNotch). */
+h3,
+.attn-kind,
+.column-head {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.column-head {
+  color: var(--muted);
+}
+.attn-kind {
+  color: var(--accent);
+}
+
+.btn {
+  color: var(--accent-ink);
+  font-weight: 600;
+  border-radius: var(--r-btn);
+}
+.btn-ghost {
+  color: var(--text);
+}
+.btn-attn {
+  background: var(--warn);
+  color: #2b1800;
+}
+.icon-btn,
+input,
+select,
+textarea {
+  border-radius: var(--r-btn);
+}
+.node {
+  border-radius: var(--radius);
+}
+.card,
+.attn,
+.step,
+.run-card,
+.new-run,
+.harness {
+  border-radius: var(--r-card);
+}
+.modal,
+.palette,
+.empty-card {
+  border-radius: var(--r-modal);
+}
