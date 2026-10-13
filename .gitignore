@@ -10,3 +10,6 @@ build/
 scratch/
 *.tsbuildinfo
 coverage/
+
+# the desktop app's per-agent worktrees and local settings
+.claude/
