@@ -198,3 +198,82 @@ textarea {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------- materials */
+:root {
+  --glass-base: rgba(10, 10, 12, 0.62);
+  --blur: blur(30px) saturate(1.6);
+  --rim: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.04));
+  --shadow-raised: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --card-glow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.modal,
+.palette,
+.menu,
+.toast {
+  background: var(--glass-base);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-raised);
+}
+.modal-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+.palette input {
+  background: transparent;
+}
+.topbar,
+.side {
+  background: var(--bg-2);
+  border-color: var(--border);
+}
+.node,
+.card,
+.attn,
+.run-card,
+.new-run,
+.harness {
+  box-shadow: var(--card-glow);
+}
+.node {
+  background: var(--panel);
+  border-color: var(--border-2);
+}
+.node-header,
+.column-head,
+.doc-bar,
+.url-bar {
+  background: var(--panel-2);
+}
+.node.selected {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--card-glow);
+}
+
+/* Calm empty states: one glyph tile, one sentence. */
+.empty-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  max-width: 520px;
+}
+.empty-card h3 {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.empty-card p {
+  line-height: 1.5;
+}
+
+/* Focus ring, keyboard first. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
