@@ -10,6 +10,11 @@ declare module 'fastify' {
 }
 
 const CLAUDE_HOOK_PREFIX = '/bus/hook/claude/';
+/** One answer for every auth failure (unknown node, stale or foreign capability, wrong hook secret). */
+const UNAUTHORIZED = {
+  error: 'unauthorized',
+  message: 'unknown node, stale capability or wrong secret',
+};
 
 function fail(reply: FastifyReply, err: unknown) {
   if (err instanceof BusError)
@@ -51,16 +56,15 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
     const nodeId = req.headers['x-switchyard-node'];
     const cap = req.headers['x-switchyard-cap'];
     if (typeof nodeId !== 'string' || typeof cap !== 'string' || !core.caps.verify(nodeId, cap)) {
-      return reply.code(401).send({ error: 'unauthorized', message: 'bad node capability' });
+      return reply.code(401).send(UNAUTHORIZED);
     }
     req.busNode = nodeId;
   });
 
   app.post('/bus/hook/claude/:nodeId/:secret', async (req, reply) => {
     const { nodeId, secret } = req.params as { nodeId: string; secret: string };
-    // Same answer for an unknown node and a wrong secret.
-    if (!core.caps.verifyHook(nodeId, secret))
-      return reply.code(401).send({ error: 'unauthorized', message: 'bad hook secret' });
+    // Same answer as the capability check above: a caller cannot tell which case it hit.
+    if (!core.caps.verifyHook(nodeId, secret)) return reply.code(401).send(UNAUTHORIZED);
     const body =
       req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
     // If Claude drops the connection (user answered in the terminal), stop waiting on a human.
