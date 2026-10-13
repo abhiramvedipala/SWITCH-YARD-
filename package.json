@@ -24,6 +24,7 @@
     "stop": "node scripts/stop.mjs",
     "selftest": "node scripts/selftest.mjs",
     "mac:app": "bash scripts/mac/make-app.sh",
+    "mac:check": "node scripts/mac/check-app.mjs",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "devDependencies": {

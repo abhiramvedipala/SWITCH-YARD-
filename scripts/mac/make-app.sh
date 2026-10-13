@@ -1,26 +1,73 @@
 #!/usr/bin/env bash
-# Builds a tiny Switchyard.app (a bash launcher, no Electron) into ~/Applications or $1.
-# The app starts the local server if needed and opens the UI in your browser. Menu-bar-less (LSUIElement).
+# Builds Switchyard.app into ~/Applications or $1.
+# With swiftc (Xcode Command Line Tools) it is a native AppKit + WebKit window (scripts/mac/SwitchyardApp.swift);
+# without it, a bash launcher that opens the UI in the default browser. Both start the server if it is down.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEST="${1:-$HOME/Applications}"
 APP="$DEST/Switchyard.app"
+SWIFTC="$(command -v swiftc || true)"
+MODE=bash
+[ -n "$SWIFTC" ] && "$SWIFTC" --version >/dev/null 2>&1 && MODE=swift
+rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+if [ "$MODE" = swift ]; then
+  EXE=Switchyard
+  BUNDLE_ID=local.switchyard.app
+  EXTRA='  <key>NSHighResolutionCapable</key><true/>
+  <key>LSMinimumSystemVersion</key><string>13.3</string>
+  <key>NSMicrophoneUsageDescription</key><string>Switchyard uses the microphone for voice input in the UI.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Switchyard turns speech into text for voice input.</string>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>'
+  # Icon: rasterize the web logo with Quick Look, then iconutil. Optional — a missing icon is not an error.
+  ICONSET="$(mktemp -d)/Switchyard.iconset"
+  mkdir -p "$ICONSET"
+  if qlmanage -t -s 1024 -o "$ICONSET" "$REPO/packages/web/public/favicon.svg" >/dev/null 2>&1 \
+    && [ -f "$ICONSET/favicon.svg.png" ]; then
+    for s in 16 32 128 256 512; do
+      sips -z $s $s "$ICONSET/favicon.svg.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+      sips -z $((s * 2)) $((s * 2)) "$ICONSET/favicon.svg.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+    done
+    rm "$ICONSET/favicon.svg.png"
+    if iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Switchyard.icns" 2>/dev/null; then
+      EXTRA="$EXTRA
+  <key>CFBundleIconFile</key><string>Switchyard</string>"
+    fi
+  fi
+  rm -rf "$(dirname "$ICONSET")"
+else
+  EXE=launcher
+  BUNDLE_ID=local.switchyard.launcher
+  EXTRA='  <key>LSUIElement</key><true/>'
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>Switchyard</string>
-  <key>CFBundleIdentifier</key><string>local.switchyard.launcher</string>
-  <key>CFBundleExecutable</key><string>launcher</string>
+  <key>CFBundleDisplayName</key><string>Switchyard</string>
+  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>CFBundleExecutable</key><string>$EXE</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>LSUIElement</key><true/>
+  <key>CFBundleShortVersionString</key><string>0.0.1</string>
+$EXTRA
 </dict></plist>
 PLIST
 
-cat > "$APP/Contents/MacOS/launcher" <<LAUNCH
+if [ "$MODE" = swift ]; then
+  SRC="$(mktemp -d)/SwitchyardApp.swift"
+  # Bake the repo path in (the app has no cwd when launched from the Dock).
+  grep -q '"@@REPO@@"' "$REPO/scripts/mac/SwitchyardApp.swift"
+  sed "s|@@REPO@@|$REPO|" "$REPO/scripts/mac/SwitchyardApp.swift" > "$SRC"
+  "$SWIFTC" -O -parse-as-library -framework Cocoa -framework WebKit -o "$APP/Contents/MacOS/$EXE" "$SRC"
+  rm -rf "$(dirname "$SRC")"
+  # Ad-hoc signature: a stable identity so TCC (microphone) and Gatekeeper treat rebuilds as the same app.
+  codesign --force --deep --sign - "$APP" 2>/dev/null
+else
+  cat > "$APP/Contents/MacOS/$EXE" <<LAUNCH
 #!/usr/bin/env bash
 REPO="$REPO"
 HOME_DIR="\${SWITCHYARD_HOME:-\$HOME/.switchyard}"
@@ -38,5 +85,12 @@ TOKEN=""
 [ -f "\$HOME_DIR/ui-session" ] && TOKEN="\$(tr -d '\n' < "\$HOME_DIR/ui-session")"
 open "http://127.0.0.1:\$PORT/#token=\$TOKEN"
 LAUNCH
-chmod +x "$APP/Contents/MacOS/launcher"
-echo "Built $APP — double-click it, or drag it to the Dock."
+  chmod +x "$APP/Contents/MacOS/$EXE"
+fi
+
+# Diagnostics (no secrets): which repo the app points at and how it was built.
+SY_HOME="${SWITCHYARD_HOME:-$HOME/.switchyard}"
+mkdir -p "$SY_HOME"
+printf '{"repo":"%s","builtAt":"%s","mode":"%s"}\n' "$REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MODE" > "$SY_HOME/mac-app.json"
+
+echo "Built $APP ($MODE) — double-click it, or drag it to the Dock."
