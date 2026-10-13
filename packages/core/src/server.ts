@@ -1,11 +1,11 @@
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import Fastify, { type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { loadOrCreateUiToken, constantTimeEqual } from './auth/token.js';
-import { WEB_DIST_DIR } from './paths.js';
+import { SWITCHYARD_HOME, WEB_DIST_DIR } from './paths.js';
 import { createCore, type Core } from './core.js';
 import { registerBusRoutes } from './api/bus.js';
 import { registerUiRoutes } from './api/ui.js';
@@ -145,7 +145,11 @@ async function main() {
   void core.refreshDetections();
   await app.listen({ host: HOST, port });
   console.log(`Switchyard core listening on http://${HOST}:${port}`);
+  // Lets the Mac launcher and `npm run stop` find this process. Removed on a clean shutdown.
+  const pidFile = join(SWITCHYARD_HOME, 'server.pid');
+  writeFileSync(pidFile, `${process.pid}\n${port}\n`, { mode: 0o600 });
   const shutdown = () => {
+    rmSync(pidFile, { force: true });
     void app.close().then(() => process.exit(0));
   };
   process.on('SIGINT', shutdown);
