@@ -36,7 +36,8 @@ describe('claude adapter', () => {
     const arg = (flag: string) => l.args[l.args.indexOf(flag) + 1]!;
     const mcp = JSON.parse(arg('--mcp-config'));
     expect(mcp.mcpServers.switchyard.env.SWITCHYARD_NODE).toBe('node123');
-    expect(mcp.mcpServers.switchyard.args[0]).toMatch(/bus-mcp\/dist\/index\.js$/);
+    expect(mcp.mcpServers.switchyard.args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
+    expect(mcp.mcpServers.switchyard.args).toContain('--max-old-space-size=64');
     const settings = JSON.parse(arg('--settings'));
     for (const ev of ['Notification', 'Stop', 'UserPromptSubmit', 'SessionStart']) {
       expect(settings.hooks[ev][0].hooks[0].command).toContain(`claude 'node123' ${ev}`);
@@ -176,7 +177,7 @@ describe('agy adapter', () => {
     const cfg = JSON.parse(readFileSync(p, 'utf8'));
     expect(Object.keys(cfg.mcpServers).sort()).toEqual(['other', 'switchyard']);
     expect(cfg.extra).toBe(1);
-    expect(cfg.mcpServers.switchyard.args[0]).toMatch(/bus-mcp\/dist\/index\.js$/);
+    expect(cfg.mcpServers.switchyard.args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
     removeAgyMcpEntry();
     expect(JSON.parse(readFileSync(p, 'utf8')).mcpServers).toEqual({ other: { command: 'x' } });
   });
