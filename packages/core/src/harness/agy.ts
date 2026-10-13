@@ -11,8 +11,8 @@ import type {
   NormalizedEvent,
 } from './types.js';
 import { which, runCapture, runNdjson, busEnv, coordinationBlurb, extractJson } from './util.js';
+import { geminiDir } from './agy-settings.js';
 
-const geminiDir = () => process.env.SWITCHYARD_GEMINI_DIR ?? join(homedir(), '.gemini');
 export const agyMcpConfigPath = () => join(geminiDir(), 'config/mcp_config.json');
 export const agyHooksConfigPath = () => join(geminiDir(), 'config/hooks.json');
 
