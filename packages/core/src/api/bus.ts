@@ -13,12 +13,10 @@ function fail(reply: FastifyReply, err: unknown) {
   if (err instanceof BusError)
     return reply.code(err.status).send({ error: err.code, message: err.message });
   if (err instanceof z.ZodError)
-    return reply
-      .code(400)
-      .send({
-        error: 'invalid_input',
-        message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-      });
+    return reply.code(400).send({
+      error: 'invalid_input',
+      message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+    });
   return reply
     .code(500)
     .send({ error: 'internal', message: String((err as Error).message ?? err) });
