@@ -211,6 +211,8 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [ ] **F11** background-session spike (skipped)
 - [ ] **F12** polish: code-splitting only so far
 
+**Check inventory (2026-10-13 evening, master):** lint clean · 169 vitest · e2e 13 PASS lines · 40 ui-checks · selftest 66 MB / 0.8 %. Run `npm run build` before `npx vitest run`: the e2e vitest file starts the built `bus-mcp/dist`, so a stale build fails it (seen once after the F6 merge).
+
 ### F0: macOS bring-up (2026-10-13, Apple M3, 16 GB, macOS 27)
 
 **Versions:** Node v22.23.3, npm 10.9.9, `claude` 2.1.272 (Claude Code), Xcode CLT at `/Library/Developer/CommandLineTools`, Python 3.14.6 + pytest 9.0.3, Playwright 1.64 with Chromium 1208 cached. `agy`: **not installed** (OWNER CHECK F0). `tailscale`: not installed.

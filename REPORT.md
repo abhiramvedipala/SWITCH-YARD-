@@ -1,55 +1,70 @@
-# Switchyard — Final report
+# Switchyard — report (2026-10-13, first day on the Mac)
 
-## Start it
+## Start it tomorrow
 
 ```bash
-npm install
-npm start          # → http://127.0.0.1:4777, paste the token printed on first start
+cd ~/switchyard && npm start      # builds, serves http://127.0.0.1:4777, prints the token once
 ```
 
-## First run on your Mac
+Or double-click `~/Applications/Switchyard.app` (`npm run mac:app` builds it; it starts the
+server if needed and opens the UI signed in). `npm run stop` stops the server. Logs:
+`~/.switchyard/server.log`.
 
-1. `xcode-select --install`, if `npm install` complains about building native modules.
-2. `claude`: sign in once with your Claude account, then exit.
-3. `curl -fsSL https://antigravity.google/cli/install.sh | bash`, then run `agy` once to sign in through the browser.
-4. `npm start`, log in with the token, and create a workspace. Use a throwaway folder or the scratch playground first.
-5. Settings (⚙) shows whether each agent is installed.
+## What works, verified on this Mac (Apple M3, macOS 27, Node 22.23, Claude Code 2.1.272)
 
-## What works (verified here)
+All of it with the mock agent and real shells, so no AI quota was spent:
 
-Everything below was exercised in this repo's automated checks: `npm test`
-(33 tests), `npm run test:e2e`, and `npm run test:ui` (26 browser checks in
-headless Chromium). None of them spends AI quota.
+- `npm run lint` clean · **169 vitest** · `npm run test:e2e` (real core + three real bus-mcp
+  processes over MCP stdio; a full mock run with real git evidence, `pytest` passing, denied-tool
+  evidence, run usage totals) · **40 headless-Chromium checks** · `npm run selftest` (idle RSS
+  66 MB / 0.8 % CPU against a 140 MB / 3 % budget).
+- **Terminals:** real shells (node-pty), 10k-line replay across reloads, resize/rename/restart/stop.
+- **Canvas:** terminal, agent, chat, note, doc and browser-preview nodes, connections, minimap,
+  ⌘K, focus mode, layout persisted, visible-only rendering, iNotch-style light/dark theme.
+- **Message system:** 13 MCP tools, durable messages, request/response matching, expiry,
+  connection scoping, shared tasks with atomic claims, `ask_user`, `wait_for_nodes`. Delivery
+  through Claude's `Stop` hook and agy's `PreInvocation`/`Stop` hooks; PTY nudge only as a
+  last resort.
+- **Status and Needs you:** hook-driven for Claude, quiet heuristic + prompt patterns otherwise.
+  `ask_user` questions, held-open **PermissionRequest** cards (Allow once / Deny / Ask in
+  terminal, `{}` on timeout), and the Claude **folder-trust dialog** (Accept button) all show in
+  the sidebar and in `/api/attention`.
+- **Board, Runs, Chat, Sessions:** as before, plus usage badges on run step rows and a `Usage:`
+  total on the result card; agy conversations listed from `~/.gemini/antigravity-cli/brain`.
+- **Identity:** each agent process gets only `SWITCHYARD_NODE`, `SWITCHYARD_HOME` and
+  `SWITCHYARD_CAPFILE` (path of its 0600 run file); capabilities and hook secrets rotate on every
+  start and are revoked on exit/stop/boot; every bad credential gets one identical 401.
+- **Remote:** loopback bind; proxied requests must carry `tailscale-user-login`, confirmed with
+  a cached `tailscale whois`; first login pinned (Forget in Settings, computer only); Funnel
+  refused; `*.ts.net` socket origin accepted only after verification; read-only by default.
+- **Widgets:** `/api/attention/summary` and long-poll `/api/attention` for a notch or menu-bar app
+  (README has the field list); `extras/xbar/` plugin.
 
-- **Terminals:** real shells. Output survives page reloads (10k-line replay). Resize, rename, restart, stop.
-- **Canvas:** terminal, agent, chat, note, markdown doc and browser-preview nodes. Connections, pan and zoom, minimap, layout saved, `⌘K` palette, `F`/`Esc` focus mode. New nodes land in free space.
-- **Message system:** 13 MCP tools through a real stdio MCP server. Durable messages, request/response matching, expiry, connection scoping (unconnected nodes can't see or reach each other), shared tasks with atomic claims and dependencies, `ask_user`, `wait_for_nodes`. Queued delivery: idle agents get one nudge, busy agents are left alone.
-- **Status:** working / idle / needs-you chips. Claude uses per-process hooks; agy and the others use a quiet-time heuristic plus on-screen prompt detection. "Needs you" shows questions within about 100 ms, with a reply box and quick keys. `/api/attention` is a JSON feed for widgets.
-- **Board:** drag between columns, dependency badges, "Assign to…" sends a request to an agent's inbox, and agents' claims and completions move cards live.
-- **Runs:** goal → planner → editable plan (instructions, agent per step, add or remove steps) → approve → parallel steps → reviewer findings go back to the builder (up to 3 rounds) → result card with files touched, `git diff --stat`, real test output (or "unverified" and why) and open findings. Pause, stop and resume work; restarts are handled.
-- **Chat:** driven chat nodes and the workspace-wide **Ask Switchyard** chat, which defaults to Antigravity. Responses stream in.
-- **Sessions:** list and resume Claude Code sessions from `~/.claude/projects`; agy "continue most recent" or resume by id; Claude.ai and ChatGPT `conversations.json` imported as read-only doc nodes.
-- **Remote/phone:** a phone layout, read-only by default for proxied requests (it can still answer and reply), login rate limiting, and a socket that needs the token in its first message plus an origin check.
-- **Extras:** "agent in a git worktree" button, push-to-talk (Web Speech API), and an xbar/SwiftBar menu-bar plugin (`extras/xbar/`).
+## Still unverified (needs you, in this order; exact steps in PROGRESS.md → Owner to-do)
 
-## What's mocked or not verified here
+1. **OWNER CHECK F0** — install and sign in to `agy`, run the `pong` request.
+2. **OWNER CHECK F1** — `node scripts/probe-agy-env.mjs` (one small agy request) decides whether
+   `SWITCHYARD_NODE`/`SWITCHYARD_CAPFILE` reach agy's hooks and MCP children or the per-folder
+   identity file stays primary.
+3. **Acceptance A1–A6** (SWITCHYARD_FINAL_PROMPT.md §5): two real agents exchange "pong";
+   delivery through the Stop hook with zero PTY nudges; permission from the sidebar; `ask_user`;
+   a real planner → builder → reviewer run with evidence; resume a real Claude session and an
+   agy conversation. Each in a fresh `~/.switchyard/scratch` workspace.
+4. **OWNER CHECK F10** (optional) — phone over `tailscale serve`.
+5. **F11** (optional research spike, ≤ 1 h, two tiny Claude turns): Claude nodes as `claude --bg`
+   background sessions. Findings only.
 
-- **Real `claude` and `agy` runs were never made.** That's on purpose (rule #9), and agy can't be installed or signed in to in this container. The adapters are covered by unit tests against the documented stream formats and CLI flags (all Claude flags were checked against `claude --help` 2.1.296), but the first real end-to-end use happens on your Mac. See the three checks below.
-- Claude's hook payloads and agy's exact stream-json field names come from the docs. Small differences would show up as wrong status chips or a missing streamed text, not as crashes.
-- Phone access over real Tailscale wasn't tested here. Phone mode was tested with forwarded headers.
+Facts that only a real run can confirm: Claude hook payload fields, the exact trust-dialog
+text, agy `stream-json` field names, real `total_cost_usd`/`usage` values, Tailscale Serve's
+header behaviour and `whois --json` shape.
 
 ## Known limitations
 
-- No cloud workspaces or hosted multiplayer. They need servers and accounts, so they're out of scope.
-- Live claude.ai or gemini.google.com chats can't be connected because there's no API. Export them and import the file.
-- agy has no documented conversation-listing command, and it isn't documented whether its MCP `env` expands `$VAR`. If it doesn't, keep one agy node per folder.
-- agy's shell commands in headless runs are soft-denied unless you allow them in `~/.gemini/antigravity-cli/settings.json`. Switchyard won't edit that file for you.
-- Phase 9 items not built: an Electron/Tauri window shell (the web UI is ready for one), a Codex CLI adapter, and an October-Bus-compatible adapter. The adapter interface (`packages/core/src/harness/types.ts`) is where those would go.
-
-## The three manual checks with real agents
-
-1. **Two real agents talking (Phase 3).** Add a Claude Code agent and an Antigravity agent and connect them. Tell Claude: `list your switchyard peers and ask the agy peer for the word 'pong', then wait for the reply`. Tell agy: `check your switchyard inbox and reply to the request`. Claude should receive "pong".
-2. **A real run (Phase 6).** Runs → goal `Create hello.py with a function that reverses a string and pytest tests; have the other agent review`. Set Where = scratch, Builder = Claude, Reviewer = Antigravity, then Plan run → Approve & start. You should get a result card with evidence.
-3. **Resume a past session (Phase 7).** Import sessions → Claude Code sessions → pick one → Resume here.
-
-Also worth a quick look: in a Claude node, ask it to `use the switchyard ask_user tool to ask me which color to use`. It should appear in Needs you within 2 s. For phone access, run `tailscale serve --bg 4777` and answer from your phone.
+- No cloud workspaces or multiplayer; no live claude.ai / gemini.google.com chat linking
+  (export and import instead).
+- If F1 shows agy does not pass env through, agy identity stays per folder: one agy node per
+  folder.
+- agy shell commands in headless runs are soft-denied unless the opt-in "Let agents run tests
+  here" button added the rules to `~/.gemini/antigravity-cli/settings.json`.
+- Not built: Electron/Tauri shell, Codex adapter, October-Bus-compatible adapter, persistent agy
+  `--input-format stream-json` sessions (per-turn `-p --conversation` is used).
