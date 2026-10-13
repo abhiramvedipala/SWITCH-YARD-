@@ -103,6 +103,20 @@ describe('verified remote requests', () => {
     await patchSettings({ remoteOwnerLogin: '' });
     await get('/api/auth/check', serve('100.64.0.2', 'a@x')); // re-pin a@x for the socket tests
   });
+
+  it('Mac notifications are off by default and only the computer can change them', async () => {
+    expect((await get('/api/settings')).json().macNotifications).toBe(false);
+    const phone = serve('100.64.0.2', 'a@x');
+    expect((await patchSettings({ macNotifications: true }, phone)).statusCode).toBe(403);
+    await patchSettings({ remoteReadOnly: false });
+    expect((await patchSettings({ macNotifications: true }, phone)).statusCode).toBe(400);
+    await patchSettings({ remoteReadOnly: true });
+    expect((await get('/api/settings')).json().macNotifications).toBe(false);
+    // From the computer it sticks (this server never starts the notifier, so nothing is posted).
+    expect((await patchSettings({ macNotifications: true })).statusCode).toBe(200);
+    expect((await get('/api/settings')).json().macNotifications).toBe(true);
+    await patchSettings({ macNotifications: false });
+  });
 });
 
 describe('websocket upgrade', () => {
