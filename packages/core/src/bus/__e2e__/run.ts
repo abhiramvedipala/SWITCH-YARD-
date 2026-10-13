@@ -11,6 +11,7 @@ process.env.SWITCHYARD_SCRATCH_ROOT = join(
 
 const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');
+const { runPersistentScenario } = await import('./persistent-scenario.js');
 
 let failed = false;
 const check = (cond: boolean, msg: string) => {
@@ -57,5 +58,24 @@ check(
   run.stepTokens > 0 && run.stepTokens === run.recordedStepTokens,
   `F9 step usage adds up to the turns billed to steps (${run.stepTokens} of ${run.usageTokens} tokens; the rest is the planner)`,
 );
+
+console.log('== persistent agy session (F8, fake agy) ==');
+const f8 = await runPersistentScenario((s) => console.log(`  ${s}`));
+check(
+  f8.chatOk.every(Boolean) && f8.chatSpawns.length === 2 && !f8.chatBusyOverlap,
+  `F8 chat node: 4 turns on ${f8.chatSpawns.length} processes (one restart after the crash), never two prompts at once`,
+);
+check(
+  /exited unexpectedly/.test(f8.crashError) &&
+    f8.chatSpawns[1]!.join(' ').includes(`--conversation ${f8.conv}`),
+  'F8 crash fails the turn; the restart resumes with --conversation <last id>',
+);
+check(f8.usageRows === 4, `F8 usage recorded per turn (${f8.usageRows} rows)`);
+check(f8.chatStdinClosed, 'F8 deleting the node closes the session stdin');
+check(
+  f8.runSpawns === 1 && f8.runPrompts === f8.runBuildTurns && f8.runPrompts >= 2,
+  `F8 run: build + review-fix turns share one agy process (${f8.runPrompts} prompts, ${f8.runSpawns} spawn)`,
+);
+check(f8.runStdinClosed, `F8 run end (${f8.runStatus}) closes the step session`);
 
 process.exit(failed ? 1 : 0);

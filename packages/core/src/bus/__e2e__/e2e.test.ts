@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 beforeAll(() => {
   process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-vitest-home-'));
-  process.env.SWITCHYARD_SCRATCH_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../../../scratch');
+  process.env.SWITCHYARD_SCRATCH_ROOT = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../../../scratch',
+  );
 });
 
 describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
@@ -37,4 +40,20 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
     expect(r.status).toBe('done');
     expect(r.denials).toEqual(['Bash: python3 -m pytest -q']);
   }, 60_000);
+
+  it('F8: persistent agy sessions (fake agy): one process per node/step, crash restart, stdin closed', async () => {
+    const { runPersistentScenario } = await import('./persistent-scenario.js');
+    const r = await runPersistentScenario();
+    expect(r.chatOk).toEqual([true, true, true]);
+    expect(r.chatSpawns).toHaveLength(2);
+    expect(r.chatSpawns[1]).toEqual(expect.arrayContaining(['--conversation', r.conv!]));
+    expect(r.chatBusyOverlap).toBe(false);
+    expect(r.crashError).toMatch(/exited unexpectedly/);
+    expect(r.usageRows).toBe(4);
+    expect(r.chatStdinClosed).toBe(true);
+    expect(r.runSpawns).toBe(1);
+    expect(r.runPrompts).toBe(r.runBuildTurns);
+    expect(r.runPrompts).toBeGreaterThanOrEqual(2);
+    expect(r.runStdinClosed).toBe(true);
+  }, 90_000);
 });
