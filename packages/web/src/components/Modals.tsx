@@ -171,8 +171,9 @@ export function SettingsModal() {
               checked={settings.autoNudge}
               onChange={(e) => save({ autoNudge: e.target.checked })}
             />
-            Nudge idle terminal agents when they have unread messages (types “[switchyard] N new
-            messages — call check_inbox”)
+            Last-resort nudge: when an idle agent has unread messages and its hooks can't deliver
+            them, type a one-line reminder into its terminal. Claude agents are served by hooks and
+            skip this unless you turn it on for that node.
           </label>
           <label className="check">
             <input
@@ -238,8 +239,9 @@ export function SettingsModal() {
           <p className="muted small">
             Claude permission-rule syntax, one per line. Driven turns run in{' '}
             <code>acceptEdits</code> mode; anything not listed is denied (no one is there to answer
-            a prompt). agy uses its own allow rules in{' '}
-            <code>~/.gemini/antigravity-cli/settings.json</code>, which Switchyard does not edit.
+            a prompt). Antigravity uses its own rules in{' '}
+            <code>~/.gemini/antigravity-cli/settings.json</code>; Switchyard only changes them when
+            you click the buttons in the Antigravity card above.
           </p>
           <textarea
             className="mono"
