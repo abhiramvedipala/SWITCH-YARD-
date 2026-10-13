@@ -4,7 +4,10 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-e2e-home-'));
-process.env.SWITCHYARD_SCRATCH_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../../../scratch');
+process.env.SWITCHYARD_SCRATCH_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../../../scratch',
+);
 
 const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');
@@ -44,5 +47,15 @@ check(
   'result card has real git evidence (scratch run is a git repo)',
 );
 console.log(`  tests evidence: ${run.tests}`);
+check(
+  run.usageTokens > 0 &&
+    run.usageTokens === run.recordedTokens &&
+    run.usageTurns === run.recordedTurns,
+  `F9 run usage total equals the sum of recorded turn usages (${run.usageTurns} turns, ${run.usageTokens} tokens)`,
+);
+check(
+  run.stepTokens > 0 && run.stepTokens === run.recordedStepTokens,
+  `F9 step usage adds up to the turns billed to steps (${run.stepTokens} of ${run.usageTokens} tokens; the rest is the planner)`,
+);
 
 process.exit(failed ? 1 : 0);

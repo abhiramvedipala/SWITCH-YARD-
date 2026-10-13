@@ -451,6 +451,27 @@ try {
     !!finished && /approved by review/.test(resultText) && /2 rounds/.test(resultText),
     `P6 run finished with a result card (“${resultText.slice(0, 80)}…”)`,
   );
+  // F9: usage totals on the result card and step rows match what was recorded per turn.
+  const runRec = (await api('GET', `/api/workspaces/${ws.id}/runs`)).data.runs[0];
+  const recorded = (await api('GET', `/api/usage?runId=${runRec.id}`)).data.total;
+  const recordedTokens = recorded.inputTokens + recorded.outputTokens;
+  const usageText = (await page.textContent('.result-card .usage-total').catch(() => '')) ?? '';
+  const uiTokens = Number(await page.getAttribute('.result-card .usage-total', 'data-tokens'));
+  check(
+    /Usage: \d[\d.]*k? tokens/.test(usageText),
+    `F9 result card shows a usage total (“${usageText.trim()}”)`,
+  );
+  check(
+    uiTokens > 0 && uiTokens === recordedTokens,
+    `F9 result card total (${uiTokens} tok) equals GET /api/usage for the run (${recordedTokens} tok over ${recorded.turns} turns)`,
+  );
+  const stepBadges = await page.$$eval('.run-card .step-usage', (els) =>
+    els.map((e) => e.textContent),
+  );
+  check(
+    stepBadges.length === runRec.steps.length && stepBadges.every((t) => /\d+ tok/.test(t)),
+    `F9 every step row shows a usage badge (${stepBadges.join(', ')})`,
+  );
   await page.screenshot({ path: join(shots, 'p6-runs.png'), fullPage: true });
 
   // Project chat (mock)

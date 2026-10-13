@@ -42,10 +42,25 @@ export async function runRunsScenario(log: (s: string) => void = () => {}, extra
   for (const s of fin.steps) for (const l of s.log) log(`  [${s.key}] ${l.text.trim()}`);
   const res = fin.result!;
   const hello = readFileSync(join(fin.cwd, 'hello.py'), 'utf8');
+  // F9: independent sums straight from the usage table, to compare with what the run object reports.
+  const tokensWhere = (extra: string) =>
+    core.db
+      .prepare(
+        `SELECT COUNT(*) turns, COALESCE(SUM(input_tokens + output_tokens), 0) tokens FROM usage WHERE run_id = ? ${extra}`,
+      )
+      .get(run.id) as { turns: number; tokens: number };
+  const recorded = tokensWhere('');
+  const recordedStepped = tokensWhere('AND step_id IS NOT NULL');
   core.monitor.stopLoop();
   core.db.close();
   return {
     status: fin.status,
+    usageTokens: fin.usage.inputTokens + fin.usage.outputTokens,
+    usageTurns: fin.usage.turns,
+    recordedTokens: recorded.tokens,
+    recordedTurns: recorded.turns,
+    stepTokens: fin.steps.reduce((n, s) => n + s.usage.inputTokens + s.usage.outputTokens, 0),
+    recordedStepTokens: recordedStepped.tokens,
     approved: res.approved,
     reviewRounds: res.reviewRounds,
     files: [...res.files.added, ...res.files.modified],
