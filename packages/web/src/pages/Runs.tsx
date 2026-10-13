@@ -3,7 +3,7 @@ import { api } from '../lib/api.js';
 import { socket } from '../lib/ws.js';
 import type { HarnessId, Run, RunStep } from '../lib/types.js';
 import { harnessLabel, useStore } from '../store.js';
-import { timeAgo } from '../components/bits.js';
+import { timeAgo, usageLabel } from '../components/bits.js';
 
 const DRIVABLE: HarnessId[] = ['claude', 'agy', 'mock'];
 
@@ -130,6 +130,14 @@ function StepRow({ run, step }: { run: Run; step: RunStep }) {
           <span className={`badge badge-${step.harness}`}>{harnessLabel(step.harness)}</span>
         )}
         <span className={`step-status st-${step.status}`}>{step.status}</span>
+        {step.usage?.turns > 0 && (
+          <span
+            className="badge badge-usage step-usage"
+            title={`${step.usage.turns} turn${step.usage.turns === 1 ? '' : 's'}: ${step.usage.inputTokens} in / ${step.usage.outputTokens} out`}
+          >
+            {usageLabel(step.usage)}
+          </span>
+        )}
         {step.role === 'review' && step.round > 0 && (
           <span className="muted small">
             {step.round} round{step.round === 1 ? '' : 's'}
@@ -184,6 +192,7 @@ function ResultCard({ run }: { run: Run }) {
   const r = run.result;
   if (!r) return null;
   const files = r.files;
+  const u = run.usage;
   return (
     <div
       className={`result-card ${r.approved === false || (r.errors?.length ?? 0) > 0 ? 'warn' : 'ok'}`}
@@ -195,6 +204,16 @@ function ResultCard({ run }: { run: Run }) {
           {r.approved === null ? 'no review step' : r.approved ? `approved` : 'not approved'} ·{' '}
           {r.reviewRounds} round{r.reviewRounds === 1 ? '' : 's'}
         </div>
+        {u?.turns > 0 && (
+          <div
+            className="usage-total"
+            data-tokens={u.inputTokens + u.outputTokens}
+            data-cost={u.costUsd}
+            title={`${u.turns} turn${u.turns === 1 ? '' : 's'}: ${u.inputTokens} in / ${u.outputTokens} out`}
+          >
+            <b>Usage:</b> {usageLabel(u, 'tokens')}
+          </div>
+        )}
         {files && (
           <div>
             <b>Files touched:</b>{' '}

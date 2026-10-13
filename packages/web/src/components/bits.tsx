@@ -135,6 +135,16 @@ export function timeAgo(ms: number): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
+export const fmtUsd = (c: number): string => `$${c < 1 ? c.toFixed(3) : c.toFixed(2)}`;
+export const fmtTokens = (n: number): string =>
+  n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
+/** "1.2k tok · $0.03", or tokens only when nothing reported a price. */
+export const usageLabel = (
+  u: { inputTokens: number; outputTokens: number; costUsd: number },
+  unit = 'tok',
+): string =>
+  `${fmtTokens(u.inputTokens + u.outputTokens)} ${unit}${u.costUsd > 0 ? ` · ${fmtUsd(u.costUsd)}` : ''}`;
+
 /** Spend of a driven node so far. Fetched on mount and whenever the node's state changes (a turn just ended); renders nothing at $0. */
 export function UsageBadge({ nodeId, state }: { nodeId: string; state: string }) {
   const [cost, setCost] = useState(0);
@@ -151,7 +161,7 @@ export function UsageBadge({ nodeId, state }: { nodeId: string; state: string })
   if (cost <= 0) return null;
   return (
     <span className="badge badge-usage" title="Spent by this node so far">
-      ${cost < 1 ? cost.toFixed(3) : cost.toFixed(2)}
+      {fmtUsd(cost)}
     </span>
   );
 }

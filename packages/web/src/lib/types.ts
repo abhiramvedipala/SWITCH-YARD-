@@ -109,6 +109,15 @@ export interface RunStep {
   evidence: { rounds?: { round: number; approve: boolean; findings: Finding[] }[] } | null;
   log: { at: number; text: string }[];
   round: number;
+  usage: UsageTotals;
+}
+
+/** Summed over turns; costUsd is 0 when no turn reported a price (mock, agy). */
+export interface UsageTotals {
+  turns: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export interface Finding {
@@ -140,6 +149,7 @@ export interface Run {
   result: RunResult | null;
   createdAt: number;
   steps: RunStep[];
+  usage: UsageTotals;
 }
 
 export interface Settings {
