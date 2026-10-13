@@ -140,6 +140,20 @@ describe('macOS notifications for new needs-you items', () => {
     ]);
   });
 
+  it('a needs_input banner keeps the end of the screen tail, where the prompt is', () => {
+    const t = setup();
+    const tail = `${'building module 7 of 9 ok\n'.repeat(9)}Allow this command? (y/n)`;
+    t.feed(item('n', { kind: 'needs_input', text: tail }));
+    t.n.check();
+    const body = /^display notification "(.*)" with title "Switchyard" subtitle "Agent n"$/.exec(
+      t.scripts()[0]!,
+    )![1]!;
+    expect(body.startsWith('…')).toBe(true);
+    expect(body.endsWith('ok Allow this command? (y/n)')).toBe(true);
+    expect([...body]).toHaveLength(120);
+    expect(appleScriptText(`${'x'.repeat(200)}END`, 120, true)).toBe(`…${'x'.repeat(116)}END`);
+  });
+
   it('hub-driven: a status or questions change re-reads the feed after a short settle; pty output does not', () => {
     const t = setup();
     t.feed(item('old'));

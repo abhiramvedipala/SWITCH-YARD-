@@ -13,15 +13,21 @@ const SETTLE_MS = 250;
  * Body of an AppleScript string literal: one line, ≤ max characters, `\` and `"` escaped.
  * Control characters and line breaks become spaces; so do box-drawing/block glyphs, which only frame a TUI dialog.
  * Clipped before escaping, so the cut can never split an escape and leave a trailing backslash.
+ * `keepEnd` clips from the front instead: a screen tail has its prompt on the last lines.
  */
-export function appleScriptText(s: string, max = 120): string {
+export function appleScriptText(s: string, max = 120, keepEnd = false): string {
   const flat = s
     // eslint-disable-next-line no-control-regex -- removing control characters is the point
     .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u2500-\u259f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const chars = [...flat]; // code points, so an emoji is never cut in half
-  const clipped = chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : flat;
+  const clipped =
+    chars.length <= max
+      ? flat
+      : keepEnd
+        ? `…${chars.slice(1 - max).join('')}`
+        : `${chars.slice(0, max - 1).join('')}…`;
   return clipped.replace(/[\\"]/g, '\\$&');
 }
 
@@ -37,7 +43,8 @@ export function notificationScript(batch: AttentionItem[]): string {
         : last.text;
   const subtitle =
     agents > 1 ? [...new Set(batch.map((i) => i.nodeTitle))].join(', ') : last.nodeTitle;
-  return `display notification "${appleScriptText(text)}" with title "Switchyard" subtitle "${appleScriptText(subtitle)}"`;
+  const body = appleScriptText(text, 120, agents === 1 && last.kind === 'needs_input');
+  return `display notification "${body}" with title "Switchyard" subtitle "${appleScriptText(subtitle)}"`;
 }
 
 export interface NotifierDeps {
