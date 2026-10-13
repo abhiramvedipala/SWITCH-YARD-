@@ -137,8 +137,46 @@ runs engine), `packages/bus-mcp` (stdio MCP server, hook relay, mock agent),
 needs the Xcode Command Line Tools (`xcode-select --install`). If you switch
 Node versions, run `npm rebuild node-pty better-sqlite3`.
 
+### macOS notes
+
+Verified on an Apple M3 (arm64), macOS 27, Node 22.23, npm 10.9:
+
+- Both native modules installed from prebuilt binaries (no compile step ran).
+- **node-pty 1.1.0's npm tarball ships `prebuilds/darwin-arm64/spawn-helper`
+  without the execute bit**, which makes every terminal fail with
+  `posix_spawnp failed`. `npm install` now runs `scripts/postinstall.mjs`,
+  which restores the bit. If a terminal node still prints that error, run
+  `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper`.
+- `$TMPDIR` lives under `/var`, a symlink to `/private/var`; the own-folder
+  guard resolves symlinks for paths that don't exist yet too.
+- `npm run test:ui` uses Playwright's cached Chromium
+  (`~/Library/Caches/ms-playwright`) or Google Chrome; set `CHROMIUM_PATH` to
+  override.
+
+### Menu bar / notch widgets (`/api/attention`)
+
+Anything local can show "agents need you" without touching the UI:
+
+- `GET /api/attention/summary` → `{"count":2,"byKind":{"question":1,"permission":1},"hash":"…"}`.
+  Cheapest read; poll it every few seconds.
+- `GET /api/attention?wait=30&since=<hash>` → long-poll: the server holds the
+  request up to 30 s and answers `304` when nothing changed, otherwise
+  `{"items":[…],"hash":"…"}`. Each item has `kind`
+  (`question` | `needs_input` | `permission` | `unread`), `id`, `nodeId`,
+  `nodeTitle`, `workspaceId`, `text`, `createdAt`, and for permissions
+  `toolName`, `source`, `options`. `If-None-Match` works the same way.
+- Acting on an item: `POST /api/questions/:id/answer {"answer":"…"}`,
+  `POST /api/permissions/:id/decide {"decision":"allow"|"deny"|"ask"}`.
+
+Every call needs `Authorization: Bearer <token>` with the token from
+`~/.switchyard/ui-session`, and only `http://127.0.0.1:4777` is reachable.
+For an iNotch-style notch app: read the token file once, long-poll
+`/api/attention` in the background, show `count` in the notch, expand the
+items on hover and send the answer or decision from there.
+`extras/xbar/switchyard.10s.sh` is the same idea in 15 lines of shell.
+
 ## Limitations
 
 - **Cloud workspaces and hosted multiplayer:** out of scope. They'd need servers and accounts.
 - **Live claude.ai / gemini.google.com chats:** can't be connected, because there's no API for them. Export and import instead.
-- **Antigravity listing:** agy documents no command to list conversations, so the import dialog offers "continue most recent here" and "resume by id".
+- **Antigravity listing:** agy has no list command, so the import dialog reads `~/.gemini/antigravity-cli/brain/*/.system_generated/logs/transcript.jsonl` (read-only) to list conversations.
