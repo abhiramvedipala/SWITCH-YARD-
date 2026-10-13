@@ -80,6 +80,20 @@ describe('claude adapter', () => {
     expect(l.args.join(' ')).toContain('--resume abc-123');
   });
 
+  it('registers PermissionRequest (600 s), PreToolUse and StopFailure as HTTP hooks to the per-node URL', async () => {
+    const { claudeHookSettings } = await import('./claude.js');
+    const url = 'http://127.0.0.1:4777/bus/hook/claude/n1/s3cret';
+    const hooks = JSON.parse(claudeHookSettings('n1', url)).hooks;
+    expect(hooks.PermissionRequest[0].hooks).toEqual([{ type: 'http', url, timeout: 600 }]);
+    expect(hooks.PreToolUse[0].hooks).toEqual([{ type: 'http', url, timeout: 10 }]);
+    expect(hooks.StopFailure[0].hooks).toEqual([{ type: 'http', url, timeout: 10 }]);
+    expect(hooks.Stop[0].hooks.map((h: { type: string }) => h.type)).toEqual(['command', 'http']);
+    // Without a URL (older callers) only the command relay is registered.
+    expect(Object.keys(JSON.parse(claudeHookSettings('n1')).hooks)).not.toContain(
+      'PermissionRequest',
+    );
+  });
+
   it('driven turns deny unapproved tools instead of prompting, and only YOLO bypasses', async () => {
     const { claudeTurnArgs } = await import('./claude.js');
     const plain = claudeTurnArgs({ prompt: 'hi', cwd: tmpdir(), allowedTools: ['Read', 'Edit'] });
