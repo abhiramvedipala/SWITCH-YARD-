@@ -121,6 +121,7 @@ export class NodeService {
       workspace: ws,
       cwd,
       resumeRef: opts.resumeRef ?? null,
+      hookUrl: h.isAgent ? this.caps.hookUrl(node.id) : undefined,
     });
     ptys.spawn(node.id, { ...launch, cols: opts.cols, rows: opts.rows });
     this.bus.setStatus(node.id, h.isAgent ? 'idle' : 'idle');

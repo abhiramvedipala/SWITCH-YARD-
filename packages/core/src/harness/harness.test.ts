@@ -51,6 +51,23 @@ describe('claude adapter', () => {
     ).toBe(false);
   });
 
+  it('adds an HTTP Stop hook with the per-node secret URL next to the command relay', async () => {
+    const { claude } = await import('./claude.js');
+    const hookUrl = 'http://127.0.0.1:4777/bus/hook/claude/node123/s3cr3t';
+    const l = claude.terminalLaunch({ node: node(), workspace: ws, cwd: tmpdir(), hookUrl });
+    const settings = JSON.parse(l.args[l.args.indexOf('--settings') + 1]!);
+    expect(settings.hooks.Stop[0].hooks).toEqual([
+      expect.objectContaining({ type: 'command' }),
+      { type: 'http', url: hookUrl, timeout: 10 },
+    ]);
+    // Other events keep only the command relay; the secret never reaches the env.
+    expect(settings.hooks.Notification[0].hooks).toHaveLength(1);
+    expect(JSON.stringify(l.env)).not.toContain('s3cr3t');
+    // Without a URL (driven turns) there is no HTTP hook.
+    const plain = claude.terminalLaunch({ node: node(), workspace: ws, cwd: tmpdir() });
+    expect(plain.args.join(' ')).not.toContain('"type":"http"');
+  });
+
   it('YOLO only when the node opts in, and resume passes --resume', async () => {
     const { claude } = await import('./claude.js');
     const l = claude.terminalLaunch({

@@ -31,21 +31,19 @@ function shq(s: string): string {
 }
 
 /** Per-process settings JSON: hooks that relay lifecycle events to core. Never touches ~/.claude/settings.json. */
-export function claudeHookSettings(nodeId: string): string {
+export function claudeHookSettings(nodeId: string, hookUrl?: string): string {
   const hooks: Record<string, unknown> = {};
   for (const ev of HOOK_EVENTS) {
-    hooks[ev] = [
+    const list: Array<Record<string, unknown>> = [
       {
-        matcher: '',
-        hooks: [
-          {
-            type: 'command',
-            command: `${shq(process.execPath)} ${shq(HOOK_RELAY_ENTRY)} claude ${shq(nodeId)} ${ev}`,
-            timeout: 10,
-          },
-        ],
+        type: 'command',
+        command: `${shq(process.execPath)} ${shq(HOOK_RELAY_ENTRY)} claude ${shq(nodeId)} ${ev}`,
+        timeout: 10,
       },
     ];
+    // Stop also gets an HTTP hook: it can answer with a decision (deliver bus messages without typing into the PTY).
+    if (ev === 'Stop' && hookUrl) list.push({ type: 'http', url: hookUrl, timeout: 10 });
+    hooks[ev] = [{ matcher: '', hooks: list }];
   }
   // `mcp__switchyard` allows every tool of the switchyard server, so bus calls never prompt.
   // Nothing else is allowed by default; this lives only in this process's --settings.
@@ -189,7 +187,7 @@ export const claude: Harness = {
       '--mcp-config',
       claudeMcpConfig(ctx.node.id),
       '--settings',
-      claudeHookSettings(ctx.node.id),
+      claudeHookSettings(ctx.node.id, ctx.hookUrl),
       '--append-system-prompt',
       coordinationBlurb(ctx.node.id, ctx.node.title),
     ];
