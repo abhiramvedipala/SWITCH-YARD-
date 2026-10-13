@@ -68,7 +68,7 @@ export interface Task {
 }
 
 export interface AttentionItem {
-  kind: 'question' | 'needs_input' | 'unread';
+  kind: 'question' | 'needs_input' | 'unread' | 'permission';
   id: string;
   nodeId: string;
   nodeTitle: string;
@@ -76,6 +76,10 @@ export interface AttentionItem {
   text: string;
   createdAt: number;
   count?: number;
+  /** permission items only */
+  toolName?: string;
+  source?: 'claude' | 'agy';
+  options?: ('allow' | 'deny' | 'ask')[];
 }
 
 export interface Detection {
