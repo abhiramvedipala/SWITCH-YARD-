@@ -6,7 +6,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-export async function runRunsScenario(log: (s: string) => void = () => {}) {
+export async function runRunsScenario(log: (s: string) => void = () => {}, extraGoal = '') {
   const home = process.env.SWITCHYARD_HOME;
   if (!home || !home.includes(tmpdir())) throw new Error('set SWITCHYARD_HOME to a temp dir first');
   const { createCore } = await import('../../core.js');
@@ -16,7 +16,8 @@ export async function runRunsScenario(log: (s: string) => void = () => {}) {
   mkdirSync(scratchRoot(), { recursive: true });
   const ws = core.store.createWorkspace('runs', scratchRoot());
   const goal =
-    'Create hello.py with a function that reverses a string and pytest tests; have the other agent review';
+    'Create hello.py with a function that reverses a string and pytest tests; have the other agent review' +
+    extraGoal;
   const run = await core.runs.create(ws.id, {
     goal,
     location: 'scratch',
@@ -49,6 +50,8 @@ export async function runRunsScenario(log: (s: string) => void = () => {}) {
     reviewRounds: res.reviewRounds,
     files: [...res.files.added, ...res.files.modified],
     gitStatus: res.git?.status ?? '',
+    denials: res.denials,
+    testsUnverified: res.tests.unverified ?? '',
     helloHasDocstring: hello.includes('"""'),
     tests: res.tests.unverified
       ? `unverified (${res.tests.unverified})`

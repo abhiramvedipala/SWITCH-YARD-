@@ -29,4 +29,11 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
     expect(r.gitStatus).toContain('hello.py');
     expect(r.files).toEqual(expect.arrayContaining(['hello.py', 'test_hello.py']));
   }, 60_000);
+
+  it('F3: denied tool calls are recorded on the step and shown on the result card', async () => {
+    const { runRunsScenario } = await import('./runs-scenario.js');
+    const r = await runRunsScenario(undefined, ' [deny:Bash: python3 -m pytest -q]');
+    expect(r.status).toBe('done');
+    expect(r.denials).toEqual(['Bash: python3 -m pytest -q']);
+  }, 60_000);
 });
