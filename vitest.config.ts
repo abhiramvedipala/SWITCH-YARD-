@@ -4,6 +4,6 @@ import { defineConfig } from 'vitest/config';
 // agent worktrees (.claude/worktrees/*) or the scratch playground.
 export default defineConfig({
   test: {
-    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**', 'scratch/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**', 'scratch/**', 'switchyard/**'],
   },
 });

@@ -16,3 +16,7 @@ coverage/
 
 # local graphify knowledge graph (regenerate with `graphify update .`)
 graphify-out/
+
+# local tool state and an accidental nested clone
+.serena/
+/switchyard/

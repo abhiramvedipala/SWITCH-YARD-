@@ -19,6 +19,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test:ui": "npm run build && node scripts/ui-check.mjs",
+    "test:all": "npm run lint && npm run build && npx vitest run && npm run test:e2e && node scripts/ui-check.mjs && npm run selftest",
     "stop": "node scripts/stop.mjs",
     "selftest": "node scripts/selftest.mjs",
     "mac:app": "bash scripts/mac/make-app.sh",
