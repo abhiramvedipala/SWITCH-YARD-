@@ -43,19 +43,19 @@ Neither is required: the **Mock agent** uses the same message system with no AI.
 ## Using it on a Mac
 
 - `npm run mac:app` builds `~/Applications/Switchyard.app` - a tiny launcher (no Electron). Double-click it (or drag it to the Dock): it starts the server if it is not running and opens the UI already signed in.
-- Or open the UI in Safari/Chrome and use *Add to Dock* - a `manifest.webmanifest` is served.
+- Or open the UI in Safari/Chrome and use _Add to Dock_ - a `manifest.webmanifest` is served.
 - `npm run stop` stops the server (pid file in `~/.switchyard/server.pid`). Logs: `~/.switchyard/server.log`.
 - It stays light: the server idles at ~80 MB and runs with a tiny young-generation heap.
 
 ## What's on the canvas
 
-| Node | What it is |
-|---|---|
-| Terminal | A real shell (node-pty). Keeps running and keeps its scrollback across page reloads. |
+| Node                            | What it is                                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Terminal                        | A real shell (node-pty). Keeps running and keeps its scrollback across page reloads.                                         |
 | Claude Code / Antigravity agent | The interactive CLI in a terminal, with Switchyard's message-system tools attached. Shows working / idle / needs-you status. |
-| Mock agent | A no-AI stand-in that drives the same tools. Type `help` in it. |
-| Claude / Antigravity chat | A "driven" agent: headless turns streamed into a chat view. |
-| Note, Doc, Browser preview | Plain text, markdown, and an iframe for `localhost` previews. |
+| Mock agent                      | A no-AI stand-in that drives the same tools. Type `help` in it.                                                              |
+| Claude / Antigravity chat       | A "driven" agent: headless turns streamed into a chat view.                                                                  |
+| Note, Doc, Browser preview      | Plain text, markdown, and an iframe for `localhost` previews.                                                                |
 
 **Connections define who can talk to whom.** An agent only sees peers it's
 connected to by an edge.
