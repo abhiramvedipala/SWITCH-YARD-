@@ -67,6 +67,13 @@ WebSocket origin and remote-detection rules.
    Success looks like a JSON object with `"status": "SUCCESS"` and `"response": "pong"`.
 4. Paste back: the output of `agy --version` and that JSON.
 
+### OWNER CHECK F10 (optional, last) — phone over Tailscale
+
+1. Install Tailscale (`brew install tailscale` or the App Store app) and sign in on the Mac and the phone.
+2. `tailscale serve --bg 4777`, open the printed `https://<mac>.<tailnet>.ts.net` URL on the phone, log in with the token, answer a pending question.
+3. Success looks like: the phone layout loads, Settings on the Mac shows "Phone access is pinned to <your login>". A second tailnet account gets 403 until you press **Forget** on the Mac.
+4. Paste back: whether the page loaded, whether the pin appeared, and one line from `~/.switchyard/server.log` if anything was refused.
+
 ### OWNER CHECK F1 — agy env-inheritance probe (one small agy request)
 
 1. From the repo folder: `node scripts/probe-agy-env.mjs`
@@ -200,7 +207,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F7** sessions: agy conversation list from `~/.gemini/antigravity-cli/brain` (fixture tests)
 - [ ] **F8** persistent agy driven sessions (skipped for now)
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
-- [~] **F10** remote hardening: Funnel traffic refused with 403, remote detection via forwarding headers; `tailscale whois` verification still to do
+- [x] **F10** remote hardening: Funnel refused (403); every Serve request must carry `tailscale-user-login`, confirmed with `tailscale whois --json <last x-forwarded-for ip>` (injectable runner, 60 s per-IP cache, fail closed + rate-limited log when the CLI is missing); first verified login pinned as `remoteOwnerLogin`, clearable only on the computer (Settings → Forget); `*.ts.net` socket origin accepted only for a verified remote. Real Tailscale → owner to-do.
 - [ ] **F11** background-session spike (skipped)
 - [ ] **F12** polish: code-splitting only so far
 
@@ -221,6 +228,12 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 
 **What changed:** usage rows carry `step_id` (migration 3); `GET /api/runs/:id` returns `usage {turns, costUsd, inputTokens, outputTokens}` on the run and on each step from one grouped query per read. Web: muted `… tok · $…` badge on each step row and a `Usage:` line on the result card, formatter shared with the chat-node badge (`bits.tsx`). The mock harness reports 100 in / 50 out tokens per turn and no price, so a mock run is 750 tokens.
 **How to try it:** Runs → mock/mock/mock → Approve & start → card reads `Usage: 750 tokens`, each step `300 tok`. e2e asserts the run total equals `SUM` over the usage table; ui-check F9 ×3.
+
+### F10 remainder: whois-verified remote access
+
+**What changed:** `auth/remote.ts` verifies every proxied request: `tailscale-user-login` header present, `tailscale whois --json <last x-forwarded-for ip>` (PATH or the App Store bundle) returns the same `UserProfile.LoginName`, result cached 60 s per IP (in-flight promise shared, failures cached, one log line per 60 s). First verified login is pinned (`remoteOwnerLogin`); PATCH accepts only `''` and only from the computer (Settings → Forget). The `/ws` upgrade accepts a `*.ts.net` Origin only after that verification. Bearer 401 still runs first so unauthenticated probes never spawn whois.
+**How to try it:** vitest `auth/remote.test.ts` + `remote.test.ts` (real ephemeral listener + `ws` client); ui-check puts a fake `tailscale` first on PATH so the real runner is exercised (+2 checks).
+**Unverified:** real Serve header behaviour (appends vs replaces `x-forwarded-for`), real `whois --json` shape, whether the App Store CLI needs `--socket`.
 
 ### F4: delivery without typing
 

@@ -113,8 +113,15 @@ Open that URL on a phone on the same tailnet and log in with the token. Remote
 sessions get a phone layout (Needs you / Runs / Agents) and are **read-only by
 default**: they can answer questions and reply to prompts, but can't add,
 delete or type into terminals. You can turn that off in Settings, but only from
-the computer itself. Logins are rate-limited. Tailscale is the only supported
-remote path; don't expose the port any other way.
+the computer itself. Logins are rate-limited. Every request that arrives through Serve must carry
+Tailscale's identity header (`tailscale-user-login`), and the core confirms it
+with `tailscale whois` on the forwarded IP (cached 60 s). The first tailnet
+login that connects is pinned as the owner; any other login gets 403 until you
+press **Forget** next to it in Settings on the computer (it cannot be cleared
+from the phone). If the `tailscale` CLI is not found (PATH or the App Store
+bundle), remote requests are refused and one line is logged. Funnel (public
+internet) is always refused. Tailscale is the only supported remote path;
+don't expose the port any other way.
 
 ## Development
 
