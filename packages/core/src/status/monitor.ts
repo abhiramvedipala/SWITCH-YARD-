@@ -135,6 +135,13 @@ export class StatusMonitor {
     }
   }
 
+  /** Set a node's state from an authoritative hook decision (marks the node hook-driven). */
+  setHookState(nodeId: string, state: NodeState): void {
+    if (!this.store.getNode(nodeId)) return;
+    this.hookDriven.add(nodeId);
+    this.set(nodeId, state);
+  }
+
   /** Hook relay events from agents (POST /bus/hook). */
   onHook(nodeId: string, harness: string, event: string, payload: Record<string, unknown>): void {
     const node = this.store.getNode(nodeId);
@@ -181,18 +188,31 @@ export class StatusMonitor {
     void harness;
   }
 
-  /** Queued delivery: only poke an agent terminal when it is idle and has unread messages. */
-  maybeNudge(nodeId: string): void {
+  /** How many PTY nudges were typed since start (tests assert this stays 0 on the hook path). */
+  nudgeCount = 0;
+
+  /** Whether a PTY nudge may be typed into this node right now. Last resort only. */
+  canNudge(nodeId: string): boolean {
     const n = this.store.getNode(nodeId);
-    if (!n || n.type !== 'agent-terminal' || n.state !== 'idle') return;
-    if (!getSetting(this.store.db, 'autoNudge', true)) return;
-    if (n.data.autoNudge === false) return;
-    if (!ptys.isAlive(nodeId)) return;
+    if (!n || n.type !== 'agent-terminal' || n.state !== 'idle') return false;
+    if (!getSetting(this.store.db, 'autoNudge', true)) return false;
+    if (n.data.autoNudge === false) return false;
+    // Claude is served by its Stop hook; typing is opt-in per node.
+    if (n.harness === 'claude' && n.data.autoNudge !== true) return false;
+    // Only where "idle" is authoritative (hook-driven) or the mock; never on the quiet-output guess.
+    if (n.harness !== 'mock' && !this.hookDriven.has(nodeId)) return false;
+    return ptys.isAlive(nodeId);
+  }
+
+  /** Queued delivery of last resort: poke an idle agent terminal that has unread messages. */
+  maybeNudge(nodeId: string): void {
+    if (!this.canNudge(nodeId)) return;
     const pending = this.bus.pendingFor(nodeId).length;
     if (pending === 0) return;
     const last = this.lastNudgeAt.get(nodeId) ?? 0;
     if (Date.now() - last < NUDGE_THROTTLE_MS) return;
     this.lastNudgeAt.set(nodeId, Date.now());
+    this.nudgeCount++;
     const text = `[switchyard] ${pending} new message${pending === 1 ? '' : 's'} — call check_inbox`;
     ptys.write(nodeId, text);
     setTimeout(() => ptys.write(nodeId, '\r'), 150);

@@ -9,6 +9,8 @@ declare module 'fastify' {
   }
 }
 
+const CLAUDE_HOOK_PREFIX = '/bus/hook/claude/';
+
 function fail(reply: FastifyReply, err: unknown) {
   if (err instanceof BusError)
     return reply.code(err.status).send({ error: err.code, message: err.message });
@@ -44,12 +46,24 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
 
   app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.url.startsWith('/bus/')) return;
+    // Claude HTTP hooks cannot send our headers; they carry a per-node secret in the path instead (checked below).
+    if (req.url.startsWith(CLAUDE_HOOK_PREFIX)) return;
     const nodeId = req.headers['x-switchyard-node'];
     const cap = req.headers['x-switchyard-cap'];
     if (typeof nodeId !== 'string' || typeof cap !== 'string' || !core.caps.verify(nodeId, cap)) {
       return reply.code(401).send({ error: 'unauthorized', message: 'bad node capability' });
     }
     req.busNode = nodeId;
+  });
+
+  app.post('/bus/hook/claude/:nodeId/:secret', async (req, reply) => {
+    const { nodeId, secret } = req.params as { nodeId: string; secret: string };
+    // Same answer for an unknown node and a wrong secret.
+    if (!core.caps.verifyHook(nodeId, secret))
+      return reply.code(401).send({ error: 'unauthorized', message: 'bad hook secret' });
+    const body =
+      req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+    return reply.send(await core.hooks.claude(nodeId, body));
   });
 
   const wrap =

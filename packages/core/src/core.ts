@@ -4,6 +4,7 @@ import { Bus } from './bus/service.js';
 import { Capabilities } from './auth/capability.js';
 import { NodeService } from './nodes/service.js';
 import { StatusMonitor } from './status/monitor.js';
+import { HookRouter } from './bus/hooks.js';
 import { ChatService } from './chat/service.js';
 import { RunEngine } from './runs/engine.js';
 import { harnesses } from './harness/index.js';
@@ -16,6 +17,7 @@ export interface Core {
   caps: Capabilities;
   nodes: NodeService;
   monitor: StatusMonitor;
+  hooks: HookRouter;
   chat: ChatService;
   runs: RunEngine;
   coreUrl: string;
@@ -30,6 +32,7 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
   const caps = new Capabilities(opts.coreUrl);
   const nodes = new NodeService(store, bus, caps);
   const monitor = new StatusMonitor(store, bus);
+  const hooks = new HookRouter(store, bus, monitor);
   const chat = new ChatService(store, bus);
   const runs = new RunEngine(store);
   const core: Core = {
@@ -39,6 +42,7 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
     caps,
     nodes,
     monitor,
+    hooks,
     chat,
     runs,
     coreUrl: opts.coreUrl,
