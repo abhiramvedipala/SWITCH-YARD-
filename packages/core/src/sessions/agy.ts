@@ -1,47 +1,85 @@
-import { which, runCapture } from '../harness/util.js';
+import { existsSync, openSync, readSync, closeSync, readdirSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { SessionSummary } from './claude.js';
 
 /**
- * agy's docs (cli/conversations) describe resuming via `agy -c` / `--conversation <id>` and an interactive
- * picker, but document no machine-readable listing command or on-disk location. We probe `agy --help` for a
- * conversations subcommand and use it only if present; otherwise the UI offers "continue most recent here"
- * and "resume by id".
+ * agy keeps one folder per conversation under ~/.gemini/antigravity-cli/brain/<conversation-id>/, with a
+ * transcript at .system_generated/logs/transcript.jsonl. We only read the head of each transcript (cheap, no agy
+ * process, nothing written) and resume with `agy --conversation <id>`. The transcript schema isn't documented, so
+ * the title lookup is defensive: first plausible user text, else the id.
  */
+export function agyBrainDir(): string {
+  return process.env.SWITCHYARD_AGY_BRAIN ?? join(homedir(), '.gemini/antigravity-cli/brain');
+}
+
+const TRANSCRIPT = join('.system_generated', 'logs', 'transcript.jsonl');
+const HEAD_BYTES = 64 * 1024;
+
+function readHead(path: string): string {
+  const fd = openSync(path, 'r');
+  try {
+    const buf = Buffer.alloc(HEAD_BYTES);
+    return buf.subarray(0, readSync(fd, buf, 0, HEAD_BYTES, 0)).toString('utf8');
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function userText(obj: Record<string, unknown>): string | null {
+  const role = String(obj.role ?? obj.type ?? obj.source ?? '').toLowerCase();
+  if (role && !/user|human/.test(role)) return null;
+  const c = obj.content ?? obj.text ?? obj.message ?? obj.prompt;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) {
+    const t = c
+      .map((b) => (b && typeof b === 'object' ? String((b as { text?: unknown }).text ?? '') : ''))
+      .join(' ')
+      .trim();
+    return t || null;
+  }
+  return null;
+}
+
+export function titleFromTranscript(head: string): string | null {
+  for (const line of head.split('\n').slice(0, 200)) {
+    if (!line.trim()) continue;
+    try {
+      const t = userText(JSON.parse(line) as Record<string, unknown>)
+        ?.replace(/\s+/g, ' ')
+        .trim();
+      if (t) return t.slice(0, 120);
+    } catch {
+      // last line of a truncated head, or a non-JSON line
+    }
+  }
+  return null;
+}
+
 export async function listAgySessions(): Promise<{ sessions: SessionSummary[]; note?: string }> {
-  const bin = which('agy');
-  if (!bin) return { sessions: [], note: 'agy is not installed.' };
-  const help = await runCapture(bin, ['--help'], { timeoutMs: 5000 });
-  const text = help.stdout + help.stderr;
-  if (!/\bconversations\b/.test(text)) {
+  const dir = agyBrainDir();
+  if (!existsSync(dir))
     return {
       sessions: [],
-      note: 'This agy version has no documented conversation-listing command. Use "Continue most recent" (agy -c, scoped to the folder) or paste a conversation id.',
+      note: 'No agy conversations found yet. Use "Continue most recent" or paste a conversation id.',
     };
+  const sessions: SessionSummary[] = [];
+  for (const id of readdirSync(dir)) {
+    const file = join(dir, id, TRANSCRIPT);
+    try {
+      const st = statSync(file);
+      sessions.push({
+        harness: 'agy',
+        sessionId: id,
+        title: titleFromTranscript(readHead(file)) ?? id,
+        cwd: null,
+        path: file,
+        mtime: st.mtimeMs,
+      });
+    } catch {
+      // folder without a transcript (e.g. artifacts only)
+    }
   }
-  const res = await runCapture(bin, ['conversations', 'list', '--output-format', 'json'], {
-    timeoutMs: 10_000,
-  });
-  if (res.code !== 0)
-    return { sessions: [], note: `agy conversations list failed: ${res.stderr.slice(0, 300)}` };
-  try {
-    const parsed = JSON.parse(res.stdout) as unknown;
-    const arr = (
-      Array.isArray(parsed)
-        ? parsed
-        : ((parsed as { conversations?: unknown[] }).conversations ?? [])
-    ) as Array<Record<string, unknown>>;
-    return {
-      sessions: arr
-        .map((c) => ({
-          harness: 'agy' as const,
-          sessionId: String(c.conversation_id ?? c.id ?? ''),
-          title: String(c.title ?? c.summary ?? c.conversation_id ?? '(untitled)'),
-          cwd: (c.cwd as string | undefined) ?? (c.workspace as string | undefined) ?? null,
-          mtime: Date.parse(String(c.updated_at ?? c.last_updated ?? '')) || 0,
-        }))
-        .filter((s) => s.sessionId),
-    };
-  } catch {
-    return { sessions: [], note: 'Could not parse agy conversation list output.' };
-  }
+  sessions.sort((a, b) => b.mtime - a.mtime);
+  return { sessions: sessions.slice(0, 200) };
 }
