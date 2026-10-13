@@ -151,4 +151,20 @@ describe('websocket upgrade', () => {
     expect(ok.hello).toMatchObject({ t: 'hello', remote: false });
     expect(await connect({ origin: 'https://evil.example' })).toEqual({ code: 4403 });
   });
+
+  it('the Vite dev proxy shape (npm run dev) is a plain local session', async () => {
+    // changeOrigin: Host is core's own; the Origin is still the dev server; no x-forwarded-* (xfwd off).
+    const dev = await connect({ origin: 'http://127.0.0.1:5173' });
+    expect(dev.hello).toMatchObject({ t: 'hello', remote: false, readOnly: false });
+    const check = await get('/api/auth/check', { origin: 'http://127.0.0.1:5173' });
+    expect(check.json()).toMatchObject({ remote: false, readOnly: false });
+    // What the proxy must never send: its own Host, or forwarding headers. Both stay remote → identity required.
+    expect((await get('/api/auth/check', { host: '127.0.0.1:5173' })).statusCode).toBe(403);
+    expect(await connect({ origin: 'http://127.0.0.1:5173', host: '127.0.0.1:5173' })).toEqual({
+      status: 403,
+    });
+    expect(
+      (await get('/api/auth/check', { 'x-forwarded-host': '127.0.0.1:5173' })).statusCode,
+    ).toBe(403);
+  });
 });
