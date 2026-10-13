@@ -148,6 +148,18 @@ export function SettingsModal() {
                   </div>
                 </div>
               )}
+              {h === 'agy' && settings && (
+                <label className="check small">
+                  <input
+                    type="checkbox"
+                    checked={settings.agyPersistentSessions}
+                    onChange={(e) => save({ agyPersistentSessions: e.target.checked })}
+                  />
+                  Keep one agy process per chat node and run step (
+                  <code>--input-format stream-json</code>) instead of one <code>agy -p</code> per
+                  turn. Experimental: not yet tried with a real agy.
+                </label>
+              )}
               {h === 'claude' && d?.installed && (
                 <div className="small ok-text">
                   ✓ bus tools are pre-allowed for Claude nodes (per process, nothing is written to

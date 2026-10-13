@@ -56,6 +56,37 @@ export interface NdjsonRun {
   timedOut: boolean;
 }
 
+/** Splits a byte stream into lines; JSON lines go to onLine, anything else to onRawLine. */
+export function ndjsonReader(
+  onLine: (obj: Record<string, unknown>) => void,
+  onRawLine?: (line: string) => void,
+) {
+  let buf = '';
+  const handle = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    try {
+      onLine(JSON.parse(trimmed) as Record<string, unknown>);
+    } catch {
+      onRawLine?.(trimmed);
+    }
+  };
+  return {
+    push(d: Buffer) {
+      buf += d.toString('utf8');
+      let i: number;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        handle(buf.slice(0, i));
+        buf = buf.slice(i + 1);
+      }
+    },
+    flush() {
+      if (buf.trim()) handle(buf);
+      buf = '';
+    },
+  };
+}
+
 /** Spawn a process, feed optional stdin, and hand each stdout JSON line to onLine. */
 export function runNdjson(
   cmd: string,
@@ -76,27 +107,11 @@ export function runNdjson(
       env: { ...process.env, ...(opts.env ?? {}) },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    let buf = '';
+    const reader = ndjsonReader(opts.onLine, opts.onRawLine);
     let stderr = '';
     let aborted = false;
     let timedOut = false;
-    const handle = (line: string) => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      try {
-        opts.onLine(JSON.parse(trimmed) as Record<string, unknown>);
-      } catch {
-        opts.onRawLine?.(trimmed);
-      }
-    };
-    child.stdout.on('data', (d: Buffer) => {
-      buf += d.toString('utf8');
-      let i: number;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        handle(buf.slice(0, i));
-        buf = buf.slice(i + 1);
-      }
-    });
+    child.stdout.on('data', (d: Buffer) => reader.push(d));
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString('utf8');
       if (stderr.length > 64_000) stderr = stderr.slice(-64_000);
@@ -120,7 +135,7 @@ export function runNdjson(
       stderr += String(err);
     });
     child.on('close', (code) => {
-      if (buf.trim()) handle(buf);
+      reader.flush();
       if (timer) clearTimeout(timer);
       opts.signal?.removeEventListener('abort', onAbort);
       resolve({ code, stderr, aborted, timedOut });

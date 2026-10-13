@@ -3,6 +3,7 @@ import type { Store, NodeRec } from '../store.js';
 import type { Bus } from '../bus/service.js';
 import { getHarness } from '../harness/index.js';
 import { coordinationBlurb } from '../harness/util.js';
+import { closeAgySessions } from '../harness/agy.js';
 import { hub } from '../events.js';
 import { randomId } from '../auth/token.js';
 import { getSetting } from '../db/index.js';
@@ -69,6 +70,7 @@ export class ChatService {
       .find((n) => n.type === 'agent-chat' && n.data.project === true);
     if (existing) {
       if (harness && existing.harness !== harness) {
+        closeAgySessions(existing.id);
         return this.store.updateNode(existing.id, { harness, sessionRef: null })!;
       }
       return existing;
@@ -157,6 +159,7 @@ export class ChatService {
         yolo: node.yolo,
         allowedTools: getSetting(this.store.db, 'allowedTools', DEFAULT_ALLOWED_TOOLS),
         appendSystemPrompt: system,
+        sessionKey: getSetting(this.store.db, 'agyPersistentSessions', false) ? nodeId : undefined,
         signal: ctrl.signal,
         onEvent: (e) => {
           if (e.kind === 'text') {
@@ -186,7 +189,11 @@ export class ChatService {
           }
         },
       });
-      recordUsage(this.store.db, { harness: node.harness ?? 'unknown', nodeId: isProject ? null : nodeId }, res);
+      recordUsage(
+        this.store.db,
+        { harness: node.harness ?? 'unknown', nodeId: isProject ? null : nodeId },
+        res,
+      );
       if (!reply.text && res.text) reply.text = res.text;
       if (!res.ok) reply.error = res.error ?? 'turn failed';
       this.save(nodeId, msgs, { sessionRef: res.sessionId ?? node.sessionRef });
@@ -210,6 +217,7 @@ export class ChatService {
   clear(nodeId: string): void {
     const n = this.store.getNode(nodeId);
     if (!n) return;
+    closeAgySessions(nodeId);
     this.store.updateNode(nodeId, { sessionRef: null, data: { ...n.data, messages: [] } });
   }
 }

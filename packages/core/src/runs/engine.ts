@@ -7,6 +7,7 @@ import { getHarness, isHarnessId } from '../harness/index.js';
 import type { HarnessId, TurnResult } from '../harness/types.js';
 import { scratchRoot, assertSafeCwd } from '../paths.js';
 import { runCapture } from '../harness/util.js';
+import { closeAgySessions } from '../harness/agy.js';
 import { getSetting } from '../db/index.js';
 import { recordUsage, runUsage, zeroUsage, type UsageTotals } from '../usage/index.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
@@ -540,6 +541,7 @@ export class RunEngine {
     if (!run || ['done', 'failed', 'stopped'].includes(run.status)) return;
     this.setRun(runId, { status: 'stopped' });
     for (const c of this.controllers.get(runId) ?? []) c.abort();
+    closeAgySessions(`run:${runId}`); // resume restarts them with --conversation
   }
 
   /** On boot, anything mid-flight was interrupted by the restart. */
@@ -625,6 +627,11 @@ export class RunEngine {
         schema: opts.schema,
         sessionId: opts.sessionId,
         allowedTools: getSetting(this.store.db, 'allowedTools', DEFAULT_ALLOWED_TOOLS),
+        // A step's own turns (build + its review fixes) share one persistent agy process.
+        sessionKey:
+          opts.stepId && getSetting(this.store.db, 'agyPersistentSessions', false)
+            ? `run:${runId}:${opts.stepId}`
+            : undefined,
         signal: ctrl.signal,
         timeoutMs: 30 * 60_000,
         onEvent: (e) => {
@@ -879,6 +886,7 @@ export class RunEngine {
     };
     this.setRun(runId, { status: errors.length > 0 ? 'failed' : 'done', result });
     this.snapshots.delete(runId);
+    closeAgySessions(`run:${runId}`);
   }
 
   delete(runId: string): void {

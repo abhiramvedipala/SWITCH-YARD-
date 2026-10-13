@@ -5,6 +5,7 @@ import type { Bus } from '../bus/service.js';
 import type { Capabilities } from '../auth/capability.js';
 import { ptys } from '../pty/manager.js';
 import { getHarness, isHarnessId } from '../harness/index.js';
+import { closeAgySessions } from '../harness/agy.js';
 import { hub } from '../events.js';
 import { assertSafeCwd } from '../paths.js';
 
@@ -155,6 +156,7 @@ export class NodeService {
   remove(nodeId: string): void {
     this.onReset(nodeId);
     ptys.kill(nodeId);
+    closeAgySessions(nodeId);
     this.caps.revoke(nodeId);
     this.store.deleteNode(nodeId);
   }

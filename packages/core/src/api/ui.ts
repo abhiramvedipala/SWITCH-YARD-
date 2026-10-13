@@ -17,6 +17,7 @@ import {
   removeAgyHooks,
   hasAgyHooks,
   hasAgyMcpEntry,
+  closeAgySessions,
 } from '../harness/agy.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
 import { listClaudeSessions } from '../sessions/claude.js';
@@ -58,6 +59,8 @@ export const SETTINGS_DEFAULTS = {
   allowedTools: DEFAULT_ALLOWED_TOOLS,
   defaultBuilder: 'claude',
   defaultReviewer: 'agy',
+  // F8: one long-lived agy process per chat node / run step. Off until a real agy has been run in this mode.
+  agyPersistentSessions: false,
 };
 
 export interface UiDeps {
@@ -307,6 +310,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       if (b.data && cur.data.readOnly === true) delete b.data.content;
       if (b.harness && cur.type !== 'agent-chat')
         throw new Error('only chat nodes can switch harness');
+      if (b.harness && b.harness !== cur.harness) closeAgySessions(cur.id);
       const patch = {
         ...b,
         data: b.data ? { ...cur.data, ...b.data } : undefined,

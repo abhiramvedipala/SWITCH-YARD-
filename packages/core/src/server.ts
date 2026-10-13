@@ -13,6 +13,7 @@ import { registerUiRoutes } from './api/ui.js';
 import { registerWs } from './ws.js';
 import { getSetting } from './db/index.js';
 import { ptys } from './pty/manager.js';
+import { closeAgySessions } from './harness/agy.js';
 
 const HOST = '127.0.0.1'; // never 0.0.0.0 — hard safety rule #3
 
@@ -154,6 +155,7 @@ export async function buildServer(
   app.addHook('onClose', async () => {
     core.monitor.stopLoop();
     ptys.killAll();
+    closeAgySessions(undefined, 0);
     core.db.close();
   });
 

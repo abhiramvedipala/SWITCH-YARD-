@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -14,18 +15,21 @@ import {
   which,
   runCapture,
   runNdjson,
+  ndjsonReader,
   busEnv,
   coordinationBlurb,
   extractJson,
   LEAN_NODE_FLAGS,
 } from './util.js';
 import { geminiDir } from './agy-settings.js';
+import { defuseCommand } from '../pty/input.js';
 
 export const agyMcpConfigPath = () => join(geminiDir(), 'config/mcp_config.json');
 export const agyHooksConfigPath = () => join(geminiDir(), 'config/hooks.json');
 
+/** SWITCHYARD_AGY_BIN overrides the lookup (tests point it at a fake; never at the real binary). */
 function bin(): string {
-  return which('agy') ?? join(homedir(), '.local/bin/agy');
+  return process.env.SWITCHYARD_AGY_BIN || (which('agy') ?? join(homedir(), '.local/bin/agy'));
 }
 
 function readJson(path: string): Record<string, unknown> {
@@ -159,6 +163,198 @@ export function normalizeAgyLine(obj: Record<string, unknown>): {
   return { events, conversationId };
 }
 
+/**
+ * argv for the long-lived driven process (F8). Slash expansion is off because a slash command ends the session;
+ * bypass only with YOLO. No --json-schema (it is per process in this mode, so schema turns use the -p path).
+ */
+export function agySessionArgs(opts: Pick<TurnOptions, 'sessionId' | 'yolo'>): string[] {
+  const args = [
+    '--input-format',
+    'stream-json',
+    '--output-format',
+    'stream-json',
+    '--disable-slash-commands',
+  ];
+  if (opts.sessionId) args.push('--conversation', opts.sessionId);
+  if (opts.yolo) args.push('--dangerously-skip-permissions');
+  return args;
+}
+
+function terminate(child: ChildProcess): void {
+  const alive = () => child.exitCode === null && child.signalCode === null;
+  if (alive()) child.kill('SIGTERM');
+  setTimeout(() => alive() && child.kill('SIGKILL'), 3000).unref();
+}
+
+interface LiveTurn {
+  line: (n: ReturnType<typeof normalizeAgyLine>) => void;
+  end: (error: string) => void;
+}
+
+/**
+ * One long-lived `agy --input-format stream-json` process. Turns are queued: a prompt goes to stdin only after the
+ * previous turn's `result`. A crash, Stop or timeout kills the process and fails the in-flight turn; the next turn
+ * starts a fresh process with `--conversation <id>`.
+ */
+class AgySession {
+  private child: ChildProcess | null = null;
+  private spec = '';
+  private conversationId: string | null = null;
+  private stderr = '';
+  private live: LiveTurn | null = null;
+  private queue: Promise<unknown> = Promise.resolve();
+  private closed = false;
+
+  turn(opts: TurnOptions): Promise<TurnResult> {
+    const p = this.queue.then(() => this.runOne(opts));
+    this.queue = p.catch(() => undefined);
+    return p;
+  }
+
+  /** Close stdin (agy ends the session on EOF), then make sure the process is gone. */
+  close(graceMs: number): void {
+    this.closed = true;
+    const child = this.child;
+    this.child = null;
+    this.live?.end('the agy session was closed');
+    if (!child) return;
+    child.stdin?.end();
+    if (graceMs > 0) setTimeout(() => terminate(child), graceMs).unref();
+    else terminate(child);
+  }
+
+  private kill(): void {
+    const child = this.child;
+    this.child = null;
+    if (child) terminate(child);
+  }
+
+  private start(opts: TurnOptions, spec: string, resume: string | null): void {
+    const child = spawn(bin(), agySessionArgs({ sessionId: resume, yolo: opts.yolo }), {
+      cwd: opts.cwd,
+      env: { ...process.env, ...(opts.nodeId ? busEnv(opts.nodeId) : {}) },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    this.child = child;
+    this.spec = spec;
+    this.conversationId = resume;
+    this.stderr = '';
+    const reader = ndjsonReader((obj) => {
+      if (child !== this.child) return;
+      const n = normalizeAgyLine(obj);
+      if (n.conversationId) this.conversationId = n.conversationId;
+      this.live?.line(n);
+    });
+    child.stdout!.on('data', (d: Buffer) => reader.push(d));
+    child.stderr!.on('data', (d: Buffer) => {
+      if (child === this.child) this.stderr = (this.stderr + d.toString('utf8')).slice(-8000);
+    });
+    child.stdin!.on('error', () => undefined); // EPIPE after a crash; the exit handler reports it
+    const died = (why: string) => {
+      if (child !== this.child) return; // replaced, stopped or closed on purpose
+      this.child = null;
+      const err = this.stderr.trim().slice(-1500);
+      this.live?.end(
+        `agy exited unexpectedly (${why})${err ? `: ${err}` : ''}. The next message restarts it with --conversation.`,
+      );
+    };
+    child.on('error', (e) => died(e.message));
+    child.on('close', (code, signal) => {
+      reader.flush();
+      died(signal ? `signal ${signal}` : `exit ${code}`);
+    });
+  }
+
+  private async runOne(opts: TurnOptions): Promise<TurnResult> {
+    // No sessionId = keep this key's conversation (a queued turn read the node before the first result came back).
+    // Starting over (Clear chat, harness switch) goes through closeAgySessions instead.
+    const want = opts.sessionId ?? this.conversationId;
+    if (this.closed || opts.signal?.aborted)
+      return { ok: false, text: '', sessionId: want, error: this.closed ? 'closed' : 'stopped' };
+    // A different conversation, folder, identity or YOLO switch needs a new process.
+    const spec = JSON.stringify([opts.cwd, opts.nodeId ?? null, !!opts.yolo]);
+    if (this.child && (spec !== this.spec || want !== this.conversationId)) this.kill();
+    if (!this.child) this.start(opts, spec, want);
+    const prompt = defuseCommand(
+      !opts.sessionId && opts.nodeId && opts.appendSystemPrompt
+        ? `${opts.appendSystemPrompt}\n\n---\n\n${opts.prompt}`
+        : opts.prompt,
+    );
+    const emit = (e: NormalizedEvent) => opts.onEvent?.(e);
+    emit({ kind: 'status', state: 'working' });
+    let text = '';
+    const outcome = await new Promise<{ result?: Record<string, unknown>; error?: string }>(
+      (resolve) => {
+        let timer: NodeJS.Timeout | undefined;
+        const finish = (o: { result?: Record<string, unknown>; error?: string }) => {
+          if (this.live !== live) return;
+          this.live = null;
+          clearTimeout(timer);
+          opts.signal?.removeEventListener('abort', onAbort);
+          resolve(o);
+        };
+        const onAbort = () => {
+          this.kill();
+          finish({ error: 'stopped' });
+        };
+        const live: LiveTurn = {
+          line: (n) => {
+            for (const e of n.events) {
+              if (e.kind === 'text') text += e.delta;
+              emit(e);
+            }
+            if (n.result) finish({ result: n.result });
+          },
+          end: (error) => finish({ error }),
+        };
+        this.live = live;
+        opts.signal?.addEventListener('abort', onAbort, { once: true });
+        if (opts.timeoutMs)
+          timer = setTimeout(() => {
+            this.kill();
+            finish({ error: 'timed out' });
+          }, opts.timeoutMs);
+        this.child!.stdin!.write(
+          JSON.stringify({ event: 'user', message: { content: prompt } }) + '\n',
+        );
+      },
+    );
+    const result = outcome.result;
+    const status = (result?.status as string | undefined) ?? 'ERROR';
+    const finalText = (result?.response as string | undefined) ?? text;
+    const sessionId = this.conversationId ?? want;
+    if (status === 'WAITING') emit({ kind: 'status', state: 'needs_input' });
+    const ok = !outcome.error && status === 'SUCCESS';
+    emit({ kind: 'result', text: finalText, sessionId, usage: result?.usage });
+    emit({ kind: 'status', state: 'idle' });
+    return {
+      ok,
+      text: finalText,
+      sessionId,
+      usage: result?.usage,
+      error: ok ? undefined : (outcome.error ?? (result?.error as string | undefined) ?? status),
+    };
+  }
+}
+
+/** Persistent sessions by key: a chat node's id, or `run:<runId>:<stepId>` for a run step. */
+const sessions = new Map<string, AgySession>();
+
+function persistentTurn(key: string, opts: TurnOptions): Promise<TurnResult> {
+  let s = sessions.get(key);
+  if (!s) sessions.set(key, (s = new AgySession()));
+  return s.turn(opts);
+}
+
+/** Ends the persistent agy process for `key` and every `key:…` (a run's steps); no key ends all (core shutdown). */
+export function closeAgySessions(key?: string, graceMs = 2000): void {
+  for (const [k, s] of sessions) {
+    if (key && k !== key && !k.startsWith(`${key}:`)) continue;
+    s.close(graceMs);
+    sessions.delete(k);
+  }
+}
+
 export const agy: Harness = {
   id: 'agy',
   label: 'Antigravity CLI',
@@ -206,6 +402,7 @@ export const agy: Harness = {
 
   async runTurn(opts: TurnOptions): Promise<TurnResult> {
     if (opts.nodeId) ensureAgyMcpEntry();
+    if (opts.sessionKey && !opts.schema) return persistentTurn(opts.sessionKey, opts);
     const prompt =
       !opts.sessionId && opts.nodeId && opts.appendSystemPrompt
         ? `${opts.appendSystemPrompt}\n\n---\n\n${opts.prompt}`

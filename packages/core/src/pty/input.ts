@@ -35,6 +35,11 @@ export function sanitizeReply(text: string): string {
     .replace(/^\n+|\n+$/g, '');
 }
 
+/** Text that starts with `/` or `!` gets a `Reply: ` prefix so it can't run as a slash command or shell escape. */
+export function defuseCommand(text: string): string {
+  return /^\s*[/!]/.test(text) ? `Reply: ${text.trimStart()}` : text;
+}
+
 export interface ReplyWrite {
   /** Text to write first. */
   body: string;
@@ -48,9 +53,8 @@ export interface ReplyWrite {
  * - multi-line text goes in as a bracketed paste so embedded newlines don't submit early.
  */
 export function planReply(text: string, submit = true): ReplyWrite | null {
-  let clean = sanitizeReply(text);
+  const clean = defuseCommand(sanitizeReply(text));
   if (!clean.trim()) return null;
-  if (/^\s*[/!]/.test(clean)) clean = `Reply: ${clean.trimStart()}`;
   const body = clean.includes('\n')
     ? `${BRACKETED_PASTE_START}${clean}${BRACKETED_PASTE_END}`
     : clean;

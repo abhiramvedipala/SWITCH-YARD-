@@ -48,6 +48,8 @@ export interface TurnOptions {
   allowedTools?: string[];
   appendSystemPrompt?: string;
   onEvent?: (e: NormalizedEvent) => void;
+  /** agy only: run this turn in the long-lived stream-json process kept under this key (Settings: agyPersistentSessions). */
+  sessionKey?: string;
   signal?: AbortSignal;
   timeoutMs?: number;
 }

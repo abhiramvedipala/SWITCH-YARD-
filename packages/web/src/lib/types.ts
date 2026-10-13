@@ -161,6 +161,7 @@ export interface Settings {
   allowedTools: string[];
   defaultBuilder: HarnessId;
   defaultReviewer: HarnessId;
+  agyPersistentSessions: boolean;
 }
 
 export interface SessionSummary {
