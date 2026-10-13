@@ -45,6 +45,15 @@ export function claudeHookSettings(nodeId: string, hookUrl?: string): string {
     if (ev === 'Stop' && hookUrl) list.push({ type: 'http', url: hookUrl, timeout: 10 });
     hooks[ev] = [{ matcher: '', hooks: list }];
   }
+  if (hookUrl) {
+    // HTTP-only events: they need an answer or are cheap status signals, so no command relay.
+    // PermissionRequest waits for the human, so it gets the full 600 s; if nobody answers, Claude's own prompt proceeds.
+    hooks.PermissionRequest = [
+      { matcher: '', hooks: [{ type: 'http', url: hookUrl, timeout: 600 }] },
+    ];
+    hooks.PreToolUse = [{ matcher: '', hooks: [{ type: 'http', url: hookUrl, timeout: 10 }] }];
+    hooks.StopFailure = [{ matcher: '', hooks: [{ type: 'http', url: hookUrl, timeout: 10 }] }];
+  }
   // `mcp__switchyard` allows every tool of the switchyard server, so bus calls never prompt.
   // Nothing else is allowed by default; this lives only in this process's --settings.
   return JSON.stringify({ hooks, permissions: { allow: ['mcp__switchyard'] } });
