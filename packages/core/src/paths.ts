@@ -1,6 +1,6 @@
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Overridable so tests never touch the real ~/.switchyard. */
@@ -19,5 +19,41 @@ export const MOCK_AGENT_ENTRY = join(REPO_ROOT, 'packages/bus-mcp/dist/mock-agen
 export function ensureDirs(): void {
   for (const d of [SWITCHYARD_HOME, RUN_DIR]) {
     if (!existsSync(d)) mkdirSync(d, { recursive: true, mode: 0o700 });
+  }
+}
+
+/** Where run/scratch folders live. Tests point this at <repo>/scratch via SWITCHYARD_SCRATCH_ROOT. */
+export function scratchRoot(): string {
+  return process.env.SWITCHYARD_SCRATCH_ROOT ?? join(SWITCHYARD_HOME, 'scratch');
+}
+
+function real(p: string): string {
+  try {
+    return realpathSync(resolve(p));
+  } catch {
+    return resolve(p);
+  }
+}
+
+function inside(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
+}
+
+/** Why an agent/run may not use this folder, or null if it is fine. Symlinks are resolved first. */
+export function unsafeCwdReason(cwd: string): string | null {
+  const c = real(cwd);
+  if (inside(c, real(scratchRoot()))) return null;
+  if (inside(c, real(REPO_ROOT))) return "This is the Switchyard app's own folder.";
+  if (inside(c, real(SWITCHYARD_HOME)))
+    return "This is Switchyard's private data folder (only its scratch/ subfolder is allowed).";
+  return null;
+}
+
+export function assertSafeCwd(cwd: string, allowOwnFolder = false): void {
+  const why = unsafeCwdReason(cwd);
+  if (why && !allowOwnFolder) {
+    throw new Error(
+      `${why} Pick another folder, or confirm "I understand this is the app's own folder".`,
+    );
   }
 }
