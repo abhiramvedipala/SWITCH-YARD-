@@ -156,6 +156,7 @@ export interface Settings {
   autoNudge: boolean;
   remoteReadOnly: boolean;
   remoteOwnerLogin: string;
+  macNotifications: boolean;
   projectChatHarness: HarnessId;
   runTestsForEvidence: boolean;
   allowedTools: string[];

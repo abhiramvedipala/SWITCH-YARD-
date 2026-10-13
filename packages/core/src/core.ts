@@ -1,9 +1,10 @@
-import { openDb, type Db } from './db/index.js';
+import { openDb, getSetting, type Db } from './db/index.js';
 import { Store } from './store.js';
 import { Bus } from './bus/service.js';
 import { Capabilities } from './auth/capability.js';
 import { NodeService } from './nodes/service.js';
 import { StatusMonitor } from './status/monitor.js';
+import { MacNotifier } from './status/notify.js';
 import { HookRouter } from './bus/hooks.js';
 import { PermissionBroker } from './status/permissions.js';
 import { ChatService } from './chat/service.js';
@@ -18,6 +19,8 @@ export interface Core {
   caps: Capabilities;
   nodes: NodeService;
   monitor: StatusMonitor;
+  /** Inert until the server entry point calls start(), so tests never post a real notification. */
+  notifier: MacNotifier;
   hooks: HookRouter;
   permissions: PermissionBroker;
   chat: ChatService;
@@ -40,6 +43,10 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
   const hooks = new HookRouter(store, bus, monitor, permissions);
   const chat = new ChatService(store, bus);
   const runs = new RunEngine(store);
+  const notifier = new MacNotifier({
+    attention: () => monitor.attention(),
+    enabled: () => getSetting<unknown>(db, 'macNotifications', false) === true,
+  });
   const core: Core = {
     db,
     store,
@@ -47,6 +54,7 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
     caps,
     nodes,
     monitor,
+    notifier,
     hooks,
     permissions,
     chat,

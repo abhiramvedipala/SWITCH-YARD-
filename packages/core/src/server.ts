@@ -153,6 +153,7 @@ export async function buildServer(
   });
 
   app.addHook('onClose', async () => {
+    core.notifier.stop();
     core.monitor.stopLoop();
     ptys.killAll();
     closeAgySessions(undefined, 0);
@@ -165,6 +166,7 @@ export async function buildServer(
 async function main() {
   const { app, core, port } = await buildServer();
   core.monitor.startLoop();
+  core.notifier.start();
   void core.refreshDetections();
   await app.listen({ host: HOST, port });
   console.log(`Switchyard core listening on http://${HOST}:${port}`);

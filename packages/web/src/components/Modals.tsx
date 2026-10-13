@@ -198,6 +198,16 @@ export function SettingsModal() {
           <label className="check">
             <input
               type="checkbox"
+              checked={settings.macNotifications}
+              disabled={remote}
+              onChange={(e) => save({ macNotifications: e.target.checked })}
+            />
+            macOS notification when an agent asks a question, waits for a permission or stops at a
+            prompt {remote && <span className="muted">(change this on the computer)</span>}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
               checked={settings.remoteReadOnly}
               disabled={remote}
               onChange={(e) => save({ remoteReadOnly: e.target.checked })}
