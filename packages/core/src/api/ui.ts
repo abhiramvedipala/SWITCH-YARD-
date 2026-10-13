@@ -65,6 +65,7 @@ const REMOTE_WRITE_ALLOW = [
   /^\/api\/auth\//,
   /^\/api\/questions\/[^/]+\/(answer|dismiss)$/,
   /^\/api\/nodes\/[^/]+\/reply$/,
+  /^\/api\/permissions\/[^/]+\/decide$/,
 ];
 
 export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps): void {
@@ -501,6 +502,21 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     h((req) => {
       const { answer } = z.object({ answer: z.string().min(1).max(20_000) }).parse(req.body);
       return bus.answerQuestion(p<{ id: string }>(req).id, answer);
+    }),
+  );
+  /** The human clicked Allow / Deny / Ask-in-terminal on a held permission request. */
+  app.post(
+    '/api/permissions/:id/decide',
+    h((req) => {
+      const { decision } = z.object({ decision: z.enum(['allow', 'deny', 'ask']) }).parse(req.body);
+      if (!core.permissions.decide(p<{ id: string }>(req).id, decision)) {
+        throw new BusError(
+          'gone',
+          'That request is no longer waiting (it timed out, or was answered in the terminal).',
+          404,
+        );
+      }
+      return { ok: true };
     }),
   );
   app.post(
