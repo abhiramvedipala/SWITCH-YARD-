@@ -28,6 +28,10 @@ function Item({ item }: { item: AttentionItem }) {
     api
       .post(`/api/nodes/${item.nodeId}/reply`, { text: k, raw: true })
       .catch((err) => notify(String(err.message), 'error'));
+  const decide = (decision: 'allow' | 'deny' | 'ask') =>
+    api
+      .post(`/api/permissions/${item.id}/decide`, { decision })
+      .catch((err) => notify(String(err.message), 'error'));
   const jump = async () => {
     if (item.workspaceId !== wsId) await selectWorkspace(item.workspaceId);
     set({ focusId: item.nodeId, view: 'canvas' });
@@ -39,9 +43,11 @@ function Item({ item }: { item: AttentionItem }) {
         <span className="attn-kind">
           {item.kind === 'question'
             ? 'asks'
-            : item.kind === 'needs_input'
-              ? 'waiting on you'
-              : 'unread'}
+            : item.kind === 'permission'
+              ? 'wants to run'
+              : item.kind === 'needs_input'
+                ? 'waiting on you'
+                : 'unread'}
         </span>
         <button className="link" onClick={jump} title="Open in focus mode">
           {item.nodeTitle}
@@ -49,12 +55,35 @@ function Item({ item }: { item: AttentionItem }) {
         <span className="spacer" />
         <span className="muted small">{timeAgo(item.createdAt)}</span>
       </div>
-      {item.kind === 'needs_input' ? (
+      {item.kind === 'permission' && <div className="perm-tool mono">{item.toolName}</div>}
+      {item.kind === 'needs_input' || item.kind === 'permission' ? (
         <pre className="attn-screen">{item.text}</pre>
       ) : (
         <div className="attn-text">{item.text}</div>
       )}
-      {item.kind === 'unread' ? (
+      {item.kind === 'permission' ? (
+        <div className="row perm-actions">
+          {item.options?.includes('allow') && (
+            <button className="btn btn-xs" onClick={() => decide('allow')}>
+              Allow once
+            </button>
+          )}
+          {item.options?.includes('deny') && (
+            <button className="btn btn-danger btn-xs" onClick={() => decide('deny')}>
+              Deny
+            </button>
+          )}
+          {item.options?.includes('ask') && (
+            <button className="btn btn-ghost btn-xs" onClick={() => decide('ask')}>
+              Ask in terminal
+            </button>
+          )}
+          <span className="muted small">
+            No click = the agent's own terminal prompt decides. Nothing is ever allowed
+            automatically.
+          </span>
+        </div>
+      ) : item.kind === 'unread' ? (
         <div className="row">
           <button
             className="btn btn-ghost btn-xs"

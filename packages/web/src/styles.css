@@ -1390,3 +1390,13 @@ label.check {
   flex-direction: column;
   gap: 6px;
 }
+
+.attn-permission {
+  border-left-color: var(--danger);
+}
+.perm-tool {
+  color: var(--accent);
+}
+.perm-actions {
+  flex-wrap: wrap;
+}
