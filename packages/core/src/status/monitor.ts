@@ -197,6 +197,9 @@ export class StatusMonitor {
     void harness;
   }
 
+  /** Set by core: open permission requests are surfaced in the attention feed. */
+  permissions?: import('./permissions.js').PermissionBroker;
+
   /** How many PTY nudges were typed since start (tests assert this stays 0 on the hook path). */
   nudgeCount = 0;
 

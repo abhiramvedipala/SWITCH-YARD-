@@ -133,15 +133,21 @@ export class NodeService {
     const node = this.store.getNode(nodeId);
     if (!node) throw new Error('unknown node');
     const resumeRef = !opts.fresh && node.type === 'agent-terminal' ? node.sessionRef : null;
+    this.onReset(nodeId);
     this.start(nodeId, { resumeRef });
   }
 
+  /** Called when a node's process is replaced or stopped, so anything waiting on it can be dropped. */
+  onReset: (nodeId: string) => void = () => {};
+
   stop(nodeId: string): void {
+    this.onReset(nodeId);
     ptys.kill(nodeId);
     if (this.store.getNode(nodeId)) this.bus.setStatus(nodeId, 'exited');
   }
 
   remove(nodeId: string): void {
+    this.onReset(nodeId);
     ptys.kill(nodeId);
     this.caps.revoke(nodeId);
     this.store.deleteNode(nodeId);
