@@ -18,7 +18,8 @@
     "test:e2e": "npm run test:e2e -w @switchyard/core --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:ui": "npm run build && node scripts/ui-check.mjs"
+    "test:ui": "npm run build && node scripts/ui-check.mjs",
+    "stop": "node scripts/stop.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
