@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Idle budget check: boots the built server on a throwaway home/port, lets it settle,
 // then asserts RSS and CPU stay small. Never starts a real agent. Run after `npm run build`.
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,6 +38,17 @@ const psRss = () =>
     });
   });
 const sample = async () => stat() ?? (await psRss());
+// RSS depends on the rest of the machine: it counts shared, evictable pages of the node binary and leaves out
+// whatever macOS has compressed (one idle server on one Mac: 69 MB, then 34 MB minutes later, footprint 35-39).
+// The footprint is the process's own memory (Activity Monitor's "Memory") and is the number to compare
+// between commits. MB, or 0 where the tool is missing.
+// ponytail: macOS only; Linux keeps RSS alone until someone needs RssAnon + VmSwap from /proc/<pid>/status.
+const footprintMb = () =>
+  new Promise((res) =>
+    execFile('footprint', ['-f', 'bytes', String(child.pid)], (_err, out) =>
+      res(Number(/Footprint: (\d+) B/.exec(out)?.[1] ?? 0) / 1024 / 1024),
+    ),
+  );
 
 let ok = false;
 for (let i = 0; i < 60 && !ok; i++) {
@@ -56,10 +67,12 @@ else {
   const b = await sample();
   const cpu = ((b.ticks - a.ticks) / 10) * 100;
   const mb = b.rss / 1024 / 1024;
+  const own = await footprintMb();
   console.log(
-    `idle RSS ${mb.toFixed(0)} MB (budget ${RSS_MB}), CPU ${cpu.toFixed(2)}% (budget ${CPU_PCT})`,
+    `idle RSS ${mb.toFixed(0)} MB${own ? `, footprint ${own.toFixed(0)} MB` : ''} (budget ${RSS_MB}), CPU ${cpu.toFixed(2)}% (budget ${CPU_PCT})`,
   );
-  failed = mb > RSS_MB || cpu > CPU_PCT;
+  // Same budget for both: the footprint only decides when RSS reads low because pages were compressed.
+  failed = Math.max(mb, own) > RSS_MB || cpu > CPU_PCT;
 }
 child.kill('SIGTERM');
 await sleep(500);
