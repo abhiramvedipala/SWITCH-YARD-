@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { api } from '../lib/api.js';
 import type { SNode } from '../lib/types.js';
 import { useStore } from '../store.js';
-import { TerminalView } from './TerminalView.js';
+import { LazyMd, LazyTerminal } from './Lazy.js';
 import { ChatView } from './ChatView.js';
 
 function useDebouncedSave(nodeId: string, key: string) {
@@ -67,7 +66,7 @@ export function DocBody({ node }: { node: SNode }) {
         />
       ) : (
         <div className="doc-view md">
-          <ReactMarkdown>{content || '_Empty doc_'}</ReactMarkdown>
+          <LazyMd>{content || '_Empty doc_'}</LazyMd>
         </div>
       )}
     </div>
@@ -120,7 +119,7 @@ export function AgentTerminalBody({ node, primary }: { node: SNode; primary: boo
   const dead = node.state === 'exited' && node.type === 'agent-terminal';
   return (
     <div className="term-wrap">
-      <TerminalView nodeId={node.id} primary={primary} />
+      <LazyTerminal nodeId={node.id} primary={primary} />
       {dead && (
         <div className="term-overlay">
           <div>Agent process is not running.</div>
