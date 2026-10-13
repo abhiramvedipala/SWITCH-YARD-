@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { socket } from '../lib/ws.js';
+import { pollChanged } from '../lib/api.js';
+import type { AttentionItem } from '../lib/types.js';
 import { refetch, useStore } from '../store.js';
 import { Canvas } from './Canvas.js';
 import { NeedsYou } from '../components/NeedsYou.js';
@@ -62,20 +64,40 @@ function useLiveEvents() {
         refetch('runs', 250);
       }
     });
-    // Screen-based states (prompt on screen) change without events, so poll the cheap feed, but only while
-    // the tab is visible: a hidden tab costs nothing, and it refreshes the moment you come back.
-    let t: ReturnType<typeof setInterval> | null = null;
+    // Screen-based states (a prompt on the terminal) change without events, so watch the feed with a long-poll:
+    // the server holds the request until something changes (or 25 s pass), so an idle tab costs ~1 request per
+    // 25 s and updates arrive instantly. Nothing runs while the tab is hidden; it refreshes when you return.
+    let ctrl: AbortController | null = null;
     const start = () => {
-      if (t === null) t = setInterval(() => refetch('attention', 0), 3000);
+      if (ctrl) return;
+      const mine = new AbortController();
+      ctrl = mine;
+      void (async () => {
+        let hash: string | null = null;
+        while (!mine.signal.aborted) {
+          try {
+            const r: { items: AttentionItem[]; hash: string } | null = await pollChanged<{
+              items: AttentionItem[];
+              hash: string;
+            }>('/api/attention', hash, mine.signal);
+            if (r) {
+              hash = r.hash;
+              useStore.getState().set({ attention: r.items });
+            }
+          } catch {
+            if (mine.signal.aborted) return;
+            await new Promise((res) => setTimeout(res, 3000)); // server down: back off, then retry
+          }
+        }
+      })();
     };
     const stop = () => {
-      if (t !== null) clearInterval(t);
-      t = null;
+      ctrl?.abort();
+      ctrl = null;
     };
     const onVisibility = () => {
       if (document.hidden) stop();
       else {
-        refetch('attention', 0);
         refetch('graph', 0);
         start();
       }
