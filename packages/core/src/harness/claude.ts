@@ -47,7 +47,9 @@ export function claudeHookSettings(nodeId: string): string {
       },
     ];
   }
-  return JSON.stringify({ hooks });
+  // `mcp__switchyard` allows every tool of the switchyard server, so bus calls never prompt.
+  // Nothing else is allowed by default; this lives only in this process's --settings.
+  return JSON.stringify({ hooks, permissions: { allow: ['mcp__switchyard'] } });
 }
 
 export function claudeMcpConfig(nodeId: string): string {
