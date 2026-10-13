@@ -255,13 +255,19 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; ui-checks for Allow / Deny / timeout and the folder-trust prompt)
 - [x] **F6** identity and capability hygiene: `SWITCHYARD_CAPFILE` (0600/owner/regular-file checked in bus-mcp), one 401 body for every bad credential, revoke on exit/stop/boot, `--max-semi-space-size=1` on child processes
 - [x] **F7** sessions: agy conversation list from `~/.gemini/antigravity-cli/brain` (fixture tests)
-- [ ] **F8** persistent agy driven sessions (skipped for now)
+- [x] **F8** persistent agy driven sessions (opt-in: Settings → Antigravity, default off; fake-binary tests only, never run against the real agy)
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
 - [x] **F10** remote hardening: Funnel refused (403); every Serve request must carry `tailscale-user-login`, confirmed with `tailscale whois --json <last x-forwarded-for ip>` (injectable runner, 60 s per-IP cache, fail closed + rate-limited log when the CLI is missing); first verified login pinned as `remoteOwnerLogin`, clearable only on the computer (Settings → Forget); `*.ts.net` socket origin accepted only for a verified remote. Real Tailscale → owner to-do.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [ ] **F12** polish: code-splitting only so far
 
 **Check inventory (2026-10-13 evening, master):** lint clean · 169 vitest · e2e 13 PASS lines · 40 ui-checks · selftest 66 MB / 0.8 %. Run `npm run build` before `npx vitest run`: the e2e vitest file starts the built `bus-mcp/dist`, so a stale build fails it (seen once after the F6 merge).
+
+### F8: persistent agy driven sessions (opt-in)
+
+**What changed:** `harness/agy.ts` gained `AgySession`: one `agy --input-format stream-json --output-format stream-json --disable-slash-commands [--conversation <id>]` process per chat node or run step, a prompt queue (next prompt only after the turn's `result`), crash/Stop/timeout → kill, fail the turn, respawn lazily with `--conversation <last id>`; a YOLO/cwd change also respawns; stdin closed on node delete, Clear chat, harness switch, run stop/finish and core shutdown. Setting `agyPersistentSessions` (default **off**) with a checkbox in the Antigravity card. Planner and review-verdict turns stay on per-turn `-p` because `--json-schema` is per process.
+**How to try it:** `npx vitest run packages/core/src/harness/agy-session.test.ts` (9 tests against `__fixtures__/fake-agy.mjs`); `npm run test:e2e` (F8 lines). With a real agy: tick the box, add an Antigravity chat node, send two messages, `pgrep -fl "input-format stream-json"` shows one process.
+**Unverified (needs a real agy):** whether stream-json input works without `-p`, the stdin line shape, whether `result.usage` is per turn or cumulative, whether `--disable-slash-commands` stops a `/…` line ending the session, exit on stdin EOF, permission prompts in this mode. Leave the toggle off until A1–A5 pass.
 
 ### F11: Claude nodes as background sessions (research only, no adoption)
 

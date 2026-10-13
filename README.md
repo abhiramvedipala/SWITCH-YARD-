@@ -102,6 +102,12 @@ It writes `~/.gemini/config/hooks.json` only if you click "Install status
 hooks". It never edits `~/.claude/settings.json`: Claude gets its MCP server
 and hooks per process through `--mcp-config` and `--settings`.
 
+Settings → Antigravity → **Keep one agy process per chat node and run step**
+(`agyPersistentSessions`, default off, experimental): chat nodes and run build
+steps on agy talk to one long-lived stream-json process instead of one
+`agy -p` per turn. It writes nothing outside Switchyard's own database; untick
+to undo.
+
 ## Phone access (Tailscale)
 
 The core stays on `127.0.0.1`. To reach it from your phone, use Tailscale's
