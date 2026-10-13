@@ -71,6 +71,8 @@ export interface RunResult {
   findings: Finding[];
   stepOutputs: { key: string; role: string; harness: string; status: string; output: string }[];
   errors: string[];
+  /** Tool calls denied during driven turns because nobody could approve them. */
+  denials: string[];
 }
 
 export const PLAN_SCHEMA_BASE = {
@@ -686,10 +688,12 @@ export class RunEngine {
       });
       return;
     }
+    for (const d of res.denials ?? []) this.log(step.id, `denied (no one could approve): ${d}`);
     this.setStep(step.id, {
       status: res.ok ? 'done' : 'failed',
       output: res.ok ? res.text : `${res.text}\n\n[error] ${res.error}`,
       sessionRef: res.sessionId,
+      evidence: { denials: res.denials ?? [] },
     });
     this.log(step.id, res.ok ? 'done' : `failed: ${res.error}`);
   }
@@ -812,6 +816,14 @@ export class RunEngine {
     const tests = getSetting(this.store.db, 'runTestsForEvidence', true)
       ? await runTests(run.cwd)
       : { unverified: 'Test run for evidence is turned off in Settings' };
+    const denials = [
+      ...new Set(
+        run.steps.flatMap((s) => (s.evidence as { denials?: string[] } | null)?.denials ?? []),
+      ),
+    ];
+    if ('unverified' in tests && tests.unverified && denials.length > 0) {
+      tests.unverified += ` (${denials.length} tool call${denials.length === 1 ? ' was' : 's were'} denied, e.g. ${denials[0]})`;
+    }
     const reviews = run.steps.filter((s) => s.role === 'review');
     const lastRounds = reviews.map(
       (r) =>
@@ -848,6 +860,7 @@ export class RunEngine {
         output: (s.output ?? '').slice(0, 3000),
       })),
       errors,
+      denials,
     };
     this.setRun(runId, { status: errors.length > 0 ? 'failed' : 'done', result });
     this.snapshots.delete(runId);
