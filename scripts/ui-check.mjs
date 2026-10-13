@@ -127,6 +127,22 @@ try {
     'P0/P2 workspace shows an empty canvas',
   );
 
+  // Launcher link: #token=... signs in and is scrubbed from the address bar
+  {
+    const fresh = await browser.newContext({ viewport: { width: 1000, height: 700 } });
+    const p2 = await fresh.newPage();
+    await p2.goto(`${base}/#token=${token}`);
+    const signedIn = await until(
+      async () => !(await p2.isVisible('.login-card')) && (await p2.isVisible('.topbar')),
+      8000,
+    );
+    check(
+      !!signedIn && !p2.url().includes('token'),
+      'Launcher link #token= signs in and the token is removed from the URL',
+    );
+    await fresh.close();
+  }
+
   // ---------------- Phase 1: terminal survives reload
   const term = (
     await api('POST', `/api/workspaces/${ws.id}/nodes`, {
