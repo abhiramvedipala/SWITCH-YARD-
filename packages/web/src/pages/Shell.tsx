@@ -1,17 +1,35 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { socket } from '../lib/ws.js';
 import { refetch, useStore } from '../store.js';
 import { Canvas } from './Canvas.js';
-import { Board } from './Board.js';
-import { Runs, RunCard } from './Runs.js';
 import { NeedsYou } from '../components/NeedsYou.js';
-import { ProjectChat } from '../components/ProjectChat.js';
 import { AddNodeMenu } from '../components/AddNode.js';
-import { ImportModal, SettingsModal, WorkspaceModal, WorktreeModal } from '../components/Modals.js';
-import { Palette } from '../components/Palette.js';
 import { NodeHeader } from '../components/NodeFrame.js';
 import { NodeBody } from '../components/NodeBodies.js';
 import { Logo, StatusChip } from '../components/bits.js';
+
+// Loaded on demand: the first screen (canvas) shouldn't pay for views and dialogs you may never open.
+const Board = lazy(() => import('./Board.js').then((m) => ({ default: m.Board })));
+const Runs = lazy(() => import('./Runs.js').then((m) => ({ default: m.Runs })));
+const RunCard = lazy(() => import('./Runs.js').then((m) => ({ default: m.RunCard })));
+const ProjectChat = lazy(() =>
+  import('../components/ProjectChat.js').then((m) => ({ default: m.ProjectChat })),
+);
+const SettingsModal = lazy(() =>
+  import('../components/Modals.js').then((m) => ({ default: m.SettingsModal })),
+);
+const ImportModal = lazy(() =>
+  import('../components/Modals.js').then((m) => ({ default: m.ImportModal })),
+);
+const WorkspaceModal = lazy(() =>
+  import('../components/Modals.js').then((m) => ({ default: m.WorkspaceModal })),
+);
+const WorktreeModal = lazy(() =>
+  import('../components/Modals.js').then((m) => ({ default: m.WorktreeModal })),
+);
+const Palette = lazy(() =>
+  import('../components/Palette.js').then((m) => ({ default: m.Palette })),
+);
 
 function useLiveEvents() {
   useEffect(() => {
@@ -262,7 +280,11 @@ function MobileShell() {
         {tab === 'needs' && <NeedsYou />}
         {tab === 'runs' &&
           (runs.length ? (
-            runs.map((r) => <RunCard key={r.id} run={r} compact />)
+            <Suspense fallback={null}>
+              {runs.map((r) => (
+                <RunCard key={r.id} run={r} compact />
+              ))}
+            </Suspense>
           ) : (
             <div className="muted pad">No runs.</div>
           ))}
@@ -309,11 +331,13 @@ export function Shell() {
 
   const modals = (
     <>
-      {s.modal === 'settings' && <SettingsModal />}
-      {s.modal === 'import' && <ImportModal />}
-      {s.modal === 'workspace' && <WorkspaceModal />}
-      {s.modal === 'worktree' && <WorktreeModal />}
-      {s.modal === 'palette' && <Palette />}
+      <Suspense fallback={null}>
+        {s.modal === 'settings' && <SettingsModal />}
+        {s.modal === 'import' && <ImportModal />}
+        {s.modal === 'workspace' && <WorkspaceModal />}
+        {s.modal === 'worktree' && <WorktreeModal />}
+        {s.modal === 'palette' && <Palette />}
+      </Suspense>
       {s.toast && <div className={`toast toast-${s.toast.kind}`}>{s.toast.text}</div>}
     </>
   );
@@ -337,9 +361,13 @@ export function Shell() {
           ) : s.view === 'canvas' ? (
             <Canvas />
           ) : s.view === 'board' ? (
-            <Board />
+            <Suspense fallback={null}>
+              <Board />
+            </Suspense>
           ) : (
-            <Runs />
+            <Suspense fallback={null}>
+              <Runs />
+            </Suspense>
           )}
         </section>
         {s.panel !== 'none' && s.wsId && (
@@ -355,7 +383,13 @@ export function Shell() {
                 ✕
               </button>
             </div>
-            {s.panel === 'needs' ? <NeedsYou /> : <ProjectChat />}
+            {s.panel === 'needs' ? (
+              <NeedsYou />
+            ) : (
+              <Suspense fallback={null}>
+                <ProjectChat />
+              </Suspense>
+            )}
           </aside>
         )}
       </div>
