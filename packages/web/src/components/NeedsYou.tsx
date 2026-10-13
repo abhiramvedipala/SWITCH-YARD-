@@ -98,6 +98,16 @@ function Item({ item }: { item: AttentionItem }) {
             Tell it to check its inbox
           </button>
         </div>
+      ) : item.kind === 'needs_input' && item.prompt === 'trust' ? (
+        <div className="row perm-actions">
+          <button className="btn btn-xs" onClick={() => key('enter')}>
+            Accept
+          </button>
+          <span className="muted small">
+            Sends Enter, which picks "Yes, proceed" in the terminal. Switchyard never trusts a
+            folder on your behalf.
+          </span>
+        </div>
       ) : item.kind === 'needs_input' ? (
         <div className="muted small">
           Waiting at a prompt: use the keys below. Typed replies are disabled here so they can't

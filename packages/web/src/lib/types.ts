@@ -80,6 +80,8 @@ export interface AttentionItem {
   toolName?: string;
   source?: 'claude' | 'agy';
   options?: ('allow' | 'deny' | 'ask')[];
+  /** needs_input items only: a known dialog the UI can answer with one button (trust = Enter). */
+  prompt?: 'trust';
 }
 
 export interface Detection {
