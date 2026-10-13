@@ -137,14 +137,14 @@ export function Canvas() {
         fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={['Backspace', 'Delete']}
-        colorMode="dark"
+        colorMode="system"
       >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#2a303b" />
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--border-2)" />
         <MiniMap
           pannable
           zoomable
           nodeColor={(n) => stateColor((n.data as { node: { state: string } }).node.state)}
-          maskColor="rgba(8,10,14,0.7)"
+          maskColor="var(--glass-base)"
         />
         <Controls showInteractive={false} />
         <FollowNewNodes ids={nodes.map((n) => n.id)} />
@@ -167,11 +167,12 @@ export function Canvas() {
 }
 
 function stateColor(s: string): string {
+  // CSS variables resolve per theme, so the minimap stays legible in light and dark.
   return s === 'working'
-    ? '#22d3ee'
+    ? 'var(--accent)'
     : s === 'needs_input'
-      ? '#f59e0b'
+      ? 'var(--warn)'
       : s === 'exited'
-        ? '#7f1d1d'
-        : '#3b4252';
+        ? 'var(--danger)'
+        : 'var(--border-2)';
 }
