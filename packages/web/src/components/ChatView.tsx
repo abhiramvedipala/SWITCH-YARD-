@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { api } from '../lib/api.js';
 import { socket } from '../lib/ws.js';
 import type { ChatMessage, SNode } from '../lib/types.js';
 import { useStore } from '../store.js';
 import { MicButton } from './bits.js';
+import { LazyMd } from './Lazy.js';
 
 /** Transcript + composer for an agent-chat node or the workspace's Project Chat. Streams over the socket. */
 export function ChatView({ node, placeholder }: { node: SNode; placeholder?: string }) {
@@ -107,7 +107,7 @@ export function ChatView({ node, placeholder }: { node: SNode; placeholder?: str
             )}
             {m.role === 'assistant' ? (
               <div className="md">
-                <ReactMarkdown>{m.text || (busy ? '…' : '')}</ReactMarkdown>
+                <LazyMd>{m.text || (busy ? '…' : '')}</LazyMd>
               </div>
             ) : (
               <div className="pre">{m.text}</div>
