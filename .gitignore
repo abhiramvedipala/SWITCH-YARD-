@@ -13,3 +13,6 @@ coverage/
 
 # the desktop app's per-agent worktrees and local settings
 .claude/
+
+# local graphify knowledge graph (regenerate with `graphify update .`)
+graphify-out/
