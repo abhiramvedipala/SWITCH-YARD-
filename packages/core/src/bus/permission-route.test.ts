@@ -10,7 +10,7 @@ let secret: string;
 
 beforeAll(async () => {
   process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-perm-home-'));
-  process.env.SWITCHYARD_PERMISSION_TIMEOUT_MS = '300'; // tests only; real waits are 590 s / 290 s
+  process.env.SWITCHYARD_PERMISSION_TIMEOUT_MS = '5000'; // tests only; real waits are 590 s / 290 s
   const { buildServer } = await import('../server.js');
   built = await buildServer({ port: 4792, dbPath: ':memory:', quiet: true });
   const ws = built.core.store.createWorkspace('t', tmpdir());
@@ -56,6 +56,15 @@ const until = async (fn: () => boolean, ms = 2000) => {
     await new Promise((r) => setTimeout(r, 10));
   }
 };
+/** Run fn with a very short permission timeout (to test expiry), then restore the longer one. */
+const withShortTimeout = async <T>(fn: () => Promise<T>): Promise<T> => {
+  process.env.SWITCHYARD_PERMISSION_TIMEOUT_MS = '250';
+  try {
+    return await fn();
+  } finally {
+    process.env.SWITCHYARD_PERMISSION_TIMEOUT_MS = '5000';
+  }
+};
 const openOne = () => built.core.permissions.open()[0]!;
 
 describe('Claude PermissionRequest hook', () => {
@@ -88,7 +97,7 @@ describe('Claude PermissionRequest hook', () => {
   });
 
   it('never auto-allows: with no click it times out to {} so the terminal prompt takes over', async () => {
-    const res = await send(bash);
+    const res = await withShortTimeout(() => send(bash));
     expect(res.json()).toEqual({});
     expect(built.core.permissions.open()).toEqual([]);
   });
@@ -119,6 +128,13 @@ describe('Claude PermissionRequest hook', () => {
 });
 
 describe('agy PreToolUse ask_permission hook (capability-authenticated relay route)', () => {
+  // issue() rotates the node's secrets, so do it once here and reuse the capability.
+  let agyCap: { capability: string };
+  beforeAll(() => {
+    const rf = built.core.caps.issue(nodeId, built.core.store.getNode(nodeId)!.workspaceId);
+    agyCap = rf;
+    secret = rf.hookSecret!;
+  });
   const agyPost = (payload: Record<string, unknown>) =>
     built.app.inject({
       method: 'POST',
@@ -126,10 +142,7 @@ describe('agy PreToolUse ask_permission hook (capability-authenticated relay rou
       headers: {
         host: '127.0.0.1:4792',
         'x-switchyard-node': nodeId,
-        'x-switchyard-cap': built.core.caps.issue(
-          nodeId,
-          built.core.store.getNode(nodeId)!.workspaceId,
-        ).capability,
+        'x-switchyard-cap': agyCap.capability,
       },
       payload: { event: 'PreToolUse', payload },
     });
@@ -167,6 +180,71 @@ describe('agy PreToolUse ask_permission hook (capability-authenticated relay rou
   });
 
   it('times out to ask, never allow', async () => {
-    expect((await agyPost(ask)).json().decision).toBe('ask');
+    expect((await withShortTimeout(() => agyPost(ask))).json().decision).toBe('ask');
+  });
+});
+
+describe('permission items in the attention feed and the decide API', () => {
+  const api = (
+    method: 'GET' | 'POST',
+    url: string,
+    payload?: object,
+    headers: Record<string, string> = {},
+  ) =>
+    built.app.inject({
+      method,
+      url,
+      headers: { authorization: `Bearer ${built.token}`, host: '127.0.0.1:4792', ...headers },
+      payload,
+    });
+
+  it('lists the request once (no duplicate screen card), and Allow via the API releases the hook', async () => {
+    const pending = send(bash);
+    await until(() => built.core.permissions.open().length === 1);
+    const feed = (await api('GET', '/api/attention')).json().items as Array<
+      Record<string, unknown>
+    >;
+    const mine = feed.filter((i) => i.nodeId === nodeId);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({
+      kind: 'permission',
+      toolName: 'Bash',
+      source: 'claude',
+      options: ['allow', 'deny'],
+    });
+    expect(String(mine[0]!.text)).toContain('echo switchyard-ok');
+    const res = await api('POST', `/api/permissions/${mine[0]!.id}/decide`, { decision: 'allow' });
+    expect(res.statusCode).toBe(200);
+    expect((await pending).json().hookSpecificOutput.decision.behavior).toBe('allow');
+  });
+
+  it('a stale or unknown request is a 404, and "ask" is not offered for Claude', async () => {
+    expect(
+      (await api('POST', '/api/permissions/nope/decide', { decision: 'allow' })).statusCode,
+    ).toBe(404);
+    const pending = send(bash);
+    await until(() => built.core.permissions.open().length === 1);
+    const id = openOne().id;
+    expect(
+      (await api('POST', `/api/permissions/${id}/decide`, { decision: 'ask' })).statusCode,
+    ).toBe(404);
+    built.core.permissions.decide(id, 'deny');
+    await pending;
+  });
+
+  it('a read-only remote session may still decide, but cannot do other writes', async () => {
+    const remote = { 'x-forwarded-for': '100.101.102.103' };
+    const pending = send(bash);
+    await until(() => built.core.permissions.open().length === 1);
+    const ok = await api(
+      'POST',
+      `/api/permissions/${openOne().id}/decide`,
+      { decision: 'deny' },
+      remote,
+    );
+    expect(ok.statusCode).toBe(200);
+    await pending;
+    const blocked = await api('POST', '/api/workspaces', { rootDir: tmpdir() }, remote);
+    expect(blocked.statusCode).toBe(403);
   });
 });
