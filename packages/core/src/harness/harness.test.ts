@@ -63,6 +63,47 @@ describe('claude adapter', () => {
     expect(l.args.join(' ')).toContain('--resume abc-123');
   });
 
+  it('driven turns deny unapproved tools instead of prompting, and only YOLO bypasses', async () => {
+    const { claudeTurnArgs } = await import('./claude.js');
+    const plain = claudeTurnArgs({ prompt: 'hi', cwd: tmpdir(), allowedTools: ['Read', 'Edit'] });
+    expect(plain).toEqual(
+      expect.arrayContaining(['--permission-mode', 'acceptEdits', '--permission-prompts', 'none']),
+    );
+    expect(plain[plain.indexOf('--allowedTools') + 1]).toBe('Read,Edit');
+    expect(plain.join(' ')).not.toMatch(/bypassPermissions|dangerously/);
+    expect(plain).not.toContain('--bare');
+    const yolo = claudeTurnArgs({
+      prompt: 'hi',
+      cwd: tmpdir(),
+      yolo: true,
+      allowedTools: ['Read'],
+    });
+    expect(yolo).toEqual(expect.arrayContaining(['--permission-mode', 'bypassPermissions']));
+    expect(yolo).not.toContain('--permission-prompts');
+    expect(yolo).not.toContain('--allowedTools');
+  });
+
+  it('summarizes permission denials from results and events', async () => {
+    const { describeDenials } = await import('./claude.js');
+    expect(
+      describeDenials({
+        permission_denials: [
+          { tool_name: 'Bash', tool_input: { command: 'python3 -m pytest -q' } },
+          { tool_name: 'Write', tool_input: { file_path: '/x/a.py' } },
+        ],
+      }),
+    ).toEqual(['Bash: python3 -m pytest -q', 'Write: /x/a.py']);
+    expect(
+      describeDenials({
+        type: 'system',
+        subtype: 'permission_denied',
+        tool_name: 'WebFetch',
+        tool_input: { url: 'https://e.x' },
+      }),
+    ).toEqual(['WebFetch: https://e.x']);
+    expect(describeDenials({ type: 'result' })).toEqual([]);
+  });
+
   it('normalizes stream-json lines', async () => {
     const { normalizeClaudeLine } = await import('./claude.js');
     expect(
