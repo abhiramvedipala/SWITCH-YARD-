@@ -20,7 +20,20 @@ export async function addNode(spec: AddSpec): Promise<void> {
   try {
     await api.post(`/api/workspaces/${wsId}/nodes`, spec);
   } catch (e) {
-    notify(String((e as Error).message), 'error');
+    const msg = String((e as Error).message);
+    if (
+      /own folder|private data folder/.test(msg) &&
+      confirm(`${msg}\n\nI understand this is the app's own folder — add the agent anyway?`)
+    ) {
+      try {
+        await api.post(`/api/workspaces/${wsId}/nodes`, { ...spec, allowOwnFolder: true });
+        return;
+      } catch (e2) {
+        notify(String((e2 as Error).message), 'error');
+        return;
+      }
+    }
+    notify(msg, 'error');
   }
 }
 
