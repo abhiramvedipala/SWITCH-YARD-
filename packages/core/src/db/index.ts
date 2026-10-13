@@ -125,6 +125,8 @@ const MIGRATIONS: string[] = [
   CREATE INDEX usage_node ON usage (node_id);
   CREATE INDEX usage_run ON usage (run_id);
   `,
+  // F9: which run step a turn belonged to, so step rows can show their own usage.
+  `ALTER TABLE usage ADD COLUMN step_id TEXT;`,
 ];
 
 export function openDb(path: string = DB_PATH): Db {

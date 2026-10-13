@@ -8,7 +8,7 @@ import type { HarnessId, TurnResult } from '../harness/types.js';
 import { scratchRoot, assertSafeCwd } from '../paths.js';
 import { runCapture } from '../harness/util.js';
 import { getSetting } from '../db/index.js';
-import { recordUsage } from '../usage/index.js';
+import { recordUsage, runUsage, zeroUsage, type UsageTotals } from '../usage/index.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
 import {
   snapshot,
@@ -47,6 +47,8 @@ export interface RunStep {
   log: { at: number; text: string }[];
   round: number;
   sessionRef: string | null;
+  /** Tokens/cost of this step's turns so far (review rounds and fix turns included). */
+  usage: UsageTotals;
 }
 
 export interface RunRec {
@@ -60,6 +62,8 @@ export interface RunRec {
   createdAt: number;
   updatedAt: number;
   steps: RunStep[];
+  /** Whole-run total, planner turn included. */
+  usage: UsageTotals;
 }
 
 export interface RunResult {
@@ -151,7 +155,8 @@ interface StepRow {
   session_ref: string | null;
 }
 
-const toStep = (r: StepRow): RunStep => ({
+const toStep = (r: StepRow, usage: UsageTotals): RunStep => ({
+  usage,
   id: r.id,
   runId: r.run_id,
   idx: r.idx,
@@ -196,10 +201,12 @@ export class RunEngine {
   get(runId: string): RunRec | undefined {
     const r = this.db.prepare('SELECT * FROM runs WHERE id=?').get(runId) as RunRow | undefined;
     if (!r) return undefined;
+    const usage = runUsage(this.db, runId);
     const steps = (
       this.db.prepare('SELECT * FROM run_steps WHERE run_id=? ORDER BY idx').all(runId) as StepRow[]
-    ).map(toStep);
+    ).map((s) => toStep(s, usage.byStep[s.id] ?? zeroUsage()));
     return {
+      usage: usage.total,
       id: r.id,
       workspaceId: r.workspace_id,
       goal: r.goal,
@@ -598,6 +605,8 @@ export class RunEngine {
       cwd: string;
       schema?: Record<string, unknown>;
       sessionId?: string | null;
+      /** Step this turn is billed to; the planner turn has none. */
+      stepId?: string;
       onText?: (d: string) => void;
       onTool?: (name: string) => void;
     },
@@ -623,7 +632,7 @@ export class RunEngine {
           if (e.kind === 'tool' && e.name !== 'result') opts.onTool?.(e.name);
         },
       });
-      recordUsage(this.store.db, { harness, runId }, res);
+      recordUsage(this.store.db, { harness, runId, stepId: opts.stepId }, res);
       return res;
     } finally {
       set.delete(ctrl);
@@ -673,6 +682,7 @@ export class RunEngine {
     const res = await this.turn(run.id, step.harness, {
       prompt,
       cwd: run.cwd,
+      stepId: step.id,
       onText: (d) => {
         buffered += d;
         if (buffered.length > 400 || d.includes('\n')) {
@@ -737,6 +747,7 @@ export class RunEngine {
         cwd: run.cwd,
         schema: REVIEW_SCHEMA,
         sessionId: reviewerSession,
+        stepId: step.id,
       });
       if (this.stepWasStopped(run.id)) {
         this.setStep(step.id, { status: 'stopped', round, evidence: { rounds: allFindings } });
@@ -795,6 +806,7 @@ export class RunEngine {
           ].join('\n'),
           cwd: run.cwd,
           sessionId: cur.sessionRef,
+          stepId: b.id,
           onTool: (name) => this.log(b.id, `tool: ${name}`),
         });
         if (this.stepWasStopped(run.id)) {
