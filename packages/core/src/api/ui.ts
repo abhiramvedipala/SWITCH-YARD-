@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
@@ -6,6 +7,7 @@ import { z } from 'zod';
 import type { Core } from '../core.js';
 import { BusError } from '../bus/service.js';
 import { ptys } from '../pty/manager.js';
+import { hub } from '../events.js';
 import { planReply, rawKeyBytes } from '../pty/input.js';
 import { getSetting, setSetting } from '../db/index.js';
 import {
@@ -493,9 +495,62 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
   );
 
   // ---------------------------------------------------------------- attention / questions
+  /** Items plus a short hash of their content (createdAt is excluded: it can be "now" for some kinds). */
+  const attentionSnapshot = (workspaceId?: string) => {
+    const items = monitor.attention(workspaceId);
+    const hash = createHash('sha1')
+      .update(JSON.stringify(items.map(({ createdAt: _t, ...rest }) => rest)))
+      .digest('hex')
+      .slice(0, 16);
+    return { items, hash };
+  };
+
+  /** Resolve when something may have changed (any event, or a 1 s tick for screen-only changes) or the client left. */
+  const nextTick = (gone: AbortSignal) =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        hub.off('event', done);
+        gone.removeEventListener('abort', done);
+        resolve();
+      };
+      const timer = setTimeout(done, 1000);
+      hub.on('event', done);
+      gone.addEventListener('abort', done, { once: true });
+    });
+
+  /**
+   * The feed. Cheap to poll: send If-None-Match (or ?since=<hash>) and get a 304 when nothing changed.
+   * With &wait=<seconds> (max 30) the server holds the request until the content changes, so an idle watcher
+   * costs about one request per 30 s and still wakes instantly.
+   */
+  app.get('/api/attention', async (req, reply) => {
+    const q = req.query as { workspaceId?: string; since?: string; wait?: string };
+    const since =
+      (q.since ?? String(req.headers['if-none-match'] ?? '')).replace(/"/g, '') || undefined;
+    const deadline = Date.now() + Math.min(Math.max(Number(q.wait) || 0, 0), 30) * 1000;
+    const gone = new AbortController();
+    reply.raw.once('close', () => gone.abort());
+    let snap = attentionSnapshot(q.workspaceId);
+    while (since && snap.hash === since && Date.now() < deadline && !gone.signal.aborted) {
+      await nextTick(gone.signal);
+      snap = attentionSnapshot(q.workspaceId);
+    }
+    reply.header('ETag', `"${snap.hash}"`).header('Cache-Control', 'no-store');
+    if (since && snap.hash === since) return reply.code(304).send();
+    return reply.send({ items: snap.items, hash: snap.hash });
+  });
+  /** Tiny read for widgets (the notch, a menu-bar icon): how many things need the human, by kind. */
   app.get(
-    '/api/attention',
-    h((req) => ({ items: monitor.attention((req.query as { workspaceId?: string }).workspaceId) })),
+    '/api/attention/summary',
+    h((req) => {
+      const { items, hash } = attentionSnapshot(
+        (req.query as { workspaceId?: string }).workspaceId,
+      );
+      const byKind: Record<string, number> = {};
+      for (const i of items) byKind[i.kind] = (byKind[i.kind] ?? 0) + 1;
+      return { count: items.length, byKind, hash };
+    }),
   );
   app.post(
     '/api/questions/:id/answer',
