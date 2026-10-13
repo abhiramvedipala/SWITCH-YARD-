@@ -187,7 +187,10 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
           payload: z.record(z.string(), z.unknown()).optional(),
         })
         .parse(req.body);
-      return core.hooks.agy(self, b.event, b.payload ?? {});
+      const gone = new AbortController();
+      // The socket closes only when the client really leaves (req 'close' fires once the body is read).
+      req.raw.socket.once('close', () => gone.abort());
+      return core.hooks.agy(self, b.event, b.payload ?? {}, gone.signal);
     }),
   );
   app.post(

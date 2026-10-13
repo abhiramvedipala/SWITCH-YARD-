@@ -109,7 +109,12 @@ export class HookRouter {
   }
 
   /** Handle one Antigravity hook event (capability-authenticated; node already resolved by the relay). */
-  async agy(nodeId: string, event: string, payload: Payload): Promise<Record<string, unknown>> {
+  async agy(
+    nodeId: string,
+    event: string,
+    payload: Payload,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
     if (!this.store.getNode(nodeId)) return {};
     const key = typeof payload.conversationId === 'string' ? payload.conversationId : nodeId;
     const backlog = this.backlog(nodeId);
@@ -131,10 +136,53 @@ export class HookRouter {
         else this.monitor.setHookState(nodeId, 'working');
         return d.output;
       }
+      case 'PreToolUse':
+        return this.agyPermission(nodeId, payload, signal);
       default:
         this.monitor.onHook(nodeId, 'agy', event, payload);
         return {};
     }
+  }
+
+  /**
+   * agy asks the human (ask_permission / ask_question). Hold the hook open so the sidebar can answer it.
+   * Default and timeout answer is "ask", which leaves the prompt to agy's own terminal UI. Never auto-allows.
+   */
+  private async agyPermission(
+    nodeId: string,
+    payload: Payload,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    const call = (payload.toolCall ?? {}) as { name?: string; args?: unknown };
+    const name = String(call.name ?? '');
+    if (name !== 'ask_permission' && name !== 'ask_question') return {};
+    const node = this.store.getNode(nodeId);
+    if (!node) return {};
+    const { id, outcome } = this.permissions.request(
+      {
+        nodeId,
+        workspaceId: node.workspaceId,
+        source: 'agy',
+        toolName: name,
+        detail: describeToolInput(name, call.args),
+        options: ['allow', 'deny', 'ask'],
+      },
+      permissionTimeoutMs('agy'),
+    );
+    this.monitor.setHookState(nodeId, 'needs_input');
+    signal?.addEventListener('abort', () => this.permissions.cancel(id), { once: true });
+    const result = await outcome;
+    if (this.store.getNode(nodeId)?.state === 'needs_input' && !this.permissions.hasOpen(nodeId)) {
+      this.monitor.setHookState(nodeId, 'working');
+    }
+    const decision = result === 'allow' || result === 'deny' ? result : 'ask';
+    return {
+      decision,
+      reason:
+        decision === 'ask'
+          ? 'Left to the terminal prompt.'
+          : `Decided by the human in Switchyard (${decision}).`,
+    };
   }
 
   forget(nodeId: string): void {
