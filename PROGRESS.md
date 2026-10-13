@@ -261,7 +261,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [ ] **F12** polish: code-splitting only so far
 
-**Check inventory (2026-10-13 evening, master):** lint clean · 169 vitest · e2e 13 PASS lines · 40 ui-checks · selftest 66 MB / 0.8 %. Run `npm run build` before `npx vitest run`: the e2e vitest file starts the built `bus-mcp/dist`, so a stale build fails it (seen once after the F6 merge).
+**Check inventory (2026-10-13 evening, master):** lint clean · 179 vitest · e2e 19 PASS lines · 40 ui-checks · selftest RSS ~67 MB, footprint 39 MB, CPU 0.5 % (budget 140 MB / 3 %). `npm run test:all` runs everything in the right order (build before vitest: the e2e vitest file starts the built `bus-mcp/dist`).
 
 ### F8: persistent agy driven sessions (opt-in)
 

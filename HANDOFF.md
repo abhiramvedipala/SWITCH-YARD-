@@ -43,7 +43,7 @@
 
 **Widgets:** `GET /api/attention/summary` (`{count, byKind, hash}`) and `GET /api/attention?wait=30&since=<hash>` (long-poll, ETag/304) for a notch app or menu bar; `POST /api/questions/:id/answer`, `POST /api/permissions/:id/decide`.
 
-**Perf/Mac:** server idles at ~31 MB RSS / 0.7 % CPU on the M3 (`npm run selftest` enforces 140 MB / 3 %); helper processes capped at 64 MB heap; attention feed long-polls instead of timers; canvas renders only visible nodes; `npm run mac:app`, PWA manifest, `npm run stop`, `#token=` launcher sign-in scrubbed from the URL.
+**Perf/Mac:** server idles at ~39 MB footprint (`ps` RSS 34-69 MB depending on memory pressure) / 0.7 % CPU on the M3 (`npm run selftest` enforces 140 MB / 3 %); helper processes capped at 64 MB heap; attention feed long-polls instead of timers; canvas renders only visible nodes; `npm run mac:app`, PWA manifest, `npm run stop`, `#token=` launcher sign-in scrubbed from the URL.
 
 ## 3. What is verified (all with the mock agent; no AI quota spent)
 
