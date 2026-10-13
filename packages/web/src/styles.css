@@ -1381,3 +1381,12 @@ label.check {
 .mobile .focus-overlay {
   padding: 6px;
 }
+
+.perm-box {
+  border-top: 1px dashed var(--border-2);
+  margin-top: 4px;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
