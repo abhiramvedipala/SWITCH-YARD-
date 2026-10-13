@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.DS_Store
+
+# never commit the app's runtime home, local test playground, or native build intermediates
+.switchyard/
+scratch/
+*.tsbuildinfo
+coverage/
