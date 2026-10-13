@@ -259,9 +259,11 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
 - [x] **F10** remote hardening: Funnel refused (403); every Serve request must carry `tailscale-user-login`, confirmed with `tailscale whois --json <last x-forwarded-for ip>` (injectable runner, 60 s per-IP cache, fail closed + rate-limited log when the CLI is missing); first verified login pinned as `remoteOwnerLogin`, clearable only on the computer (Settings → Forget); `*.ts.net` socket origin accepted only for a verified remote. Real Tailscale → owner to-do.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
-- [ ] **F12** polish: code-splitting only so far
+- [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-13 evening, master):** lint clean · 179 vitest · e2e 19 PASS lines · 40 ui-checks · selftest RSS ~67 MB, footprint 39 MB, CPU 0.5 % (budget 140 MB / 3 %). `npm run test:all` runs everything in the right order (build before vitest: the e2e vitest file starts the built `bus-mcp/dist`).
+**Check inventory (2026-10-13 evening, master):** lint clean · 192 vitest · e2e 19 PASS lines · 40 ui-checks · selftest footprint 39 MB, CPU 0.9 % (budget 140 MB / 3 %). `npm run test:all` runs everything in order.
+
+**In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 
 ### F8: persistent agy driven sessions (opt-in)
 

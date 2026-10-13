@@ -135,7 +135,8 @@ don't expose the port any other way.
 ## Development
 
 ```bash
-npm run dev        # watch-builds web + bus-mcp, runs core with auto-reload (still on :4777)
+npm run dev        # Vite dev server with HMR on http://127.0.0.1:5173 (proxies /api, /bus, /ws to core on :4777)
+npm run dev:build  # the old mode: watch-builds web and core serves it on :4777 (no HMR)
 npm test           # unit + integration tests (mock harness, temp dirs)
 npm run test:e2e   # message-system and runs scenarios with real bus-mcp processes, verbose
 npm run test:ui    # builds, then drives the UI in headless Chromium through every phase's check
