@@ -12,6 +12,12 @@ import type {
   HarnessId,
 } from './lib/types.js';
 
+export interface AgyConfig {
+  mcpEntry: boolean;
+  hooks: boolean;
+  permissions: { bus: boolean; testCommands: boolean; writeDirs: string[] };
+}
+
 export type View = 'canvas' | 'board' | 'runs';
 export type Panel = 'none' | 'needs' | 'chat';
 export type Modal = 'none' | 'settings' | 'import' | 'workspace' | 'palette' | 'worktree';
@@ -28,7 +34,7 @@ interface State {
   attention: AttentionItem[];
   detections: Partial<Record<HarnessId, Detection>>;
   available: HarnessId[];
-  agyConfig: { mcpEntry: boolean; hooks: boolean };
+  agyConfig: AgyConfig;
   settings: Settings | null;
   view: View;
   panel: Panel;
@@ -64,7 +70,11 @@ export const useStore = create<State>((set, get) => ({
   attention: [],
   detections: {},
   available: ['mock'],
-  agyConfig: { mcpEntry: false, hooks: false },
+  agyConfig: {
+    mcpEntry: false,
+    hooks: false,
+    permissions: { bus: false, testCommands: false, writeDirs: [] },
+  },
   settings: null,
   view: 'canvas',
   panel: 'none',
@@ -145,7 +155,7 @@ export const useStore = create<State>((set, get) => ({
     const r = await api.get<{
       detections: Partial<Record<HarnessId, Detection>>;
       available: HarnessId[];
-      agy: { mcpEntry: boolean; hooks: boolean };
+      agy: AgyConfig;
     }>(`/api/harnesses${refresh ? '?refresh=1' : ''}`);
     set({ detections: r.detections, available: r.available, agyConfig: r.agy });
   },
