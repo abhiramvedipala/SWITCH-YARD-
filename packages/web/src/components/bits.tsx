@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { NodeState } from '../lib/types.js';
+import { api } from '../lib/api.js';
 
 const STATE_LABEL: Record<string, string> = {
   working: 'working',
@@ -132,4 +133,25 @@ export function timeAgo(ms: number): string {
   const h = Math.round(m / 60);
   if (h < 48) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
+}
+
+/** Spend of a driven node so far. Fetched on mount and whenever the node's state changes (a turn just ended); renders nothing at $0. */
+export function UsageBadge({ nodeId, state }: { nodeId: string; state: string }) {
+  const [cost, setCost] = useState(0);
+  useEffect(() => {
+    let live = true;
+    api
+      .get<{ total: { costUsd: number } }>(`/api/usage?nodeId=${nodeId}`)
+      .then((u) => live && setCost(u.total.costUsd))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [nodeId, state]);
+  if (cost <= 0) return null;
+  return (
+    <span className="badge badge-usage" title="Spent by this node so far">
+      ${cost < 1 ? cost.toFixed(3) : cost.toFixed(2)}
+    </span>
+  );
 }

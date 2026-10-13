@@ -3,7 +3,7 @@ import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 import { api } from '../lib/api.js';
 import type { SNode } from '../lib/types.js';
 import { harnessLabel, useStore } from '../store.js';
-import { StatusChip } from './bits.js';
+import { StatusChip, UsageBadge } from './bits.js';
 import { NodeBody } from './NodeBodies.js';
 
 const TYPE_ICON: Record<string, string> = {
@@ -151,6 +151,7 @@ export function NodeHeader({ node, inFocus }: { node: SNode; inFocus?: boolean }
           {node.unread} ✉
         </span>
       )}
+      {node.type === 'agent-chat' && <UsageBadge nodeId={node.id} state={node.state} />}
       <span className="spacer" />
       {isAgentish && <StatusChip state={node.state} />}
       {inFocus ? (

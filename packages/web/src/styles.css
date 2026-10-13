@@ -246,6 +246,10 @@ label.check {
   border-color: #b91c1c;
   font-weight: 700;
 }
+.badge-usage {
+  color: var(--muted, #9aa0aa);
+  font-variant-numeric: tabular-nums;
+}
 .badge-unread {
   color: var(--warn);
   border-color: #6b4a10;
