@@ -11,11 +11,17 @@ export function SettingsModal() {
   const detections = useStore((s) => s.detections);
   const agy = useStore((s) => s.agyConfig);
   const remote = useStore((s) => s.remote);
+  const wsRoot = useStore((s) => s.workspaces.find((w) => w.id === s.wsId)?.rootDir);
   const { loadSettings, loadHarnesses, notify } = useStore.getState();
   const [tools, setTools] = useState('');
+  const [scratch, setScratch] = useState('');
   useEffect(() => {
     void loadSettings();
     void loadHarnesses(true);
+    api
+      .get<{ scratchDir: string }>('/api/meta')
+      .then((m) => setScratch(m.scratchDir))
+      .catch(() => undefined);
   }, [loadSettings, loadHarnesses]);
   useEffect(() => setTools((settings?.allowedTools ?? []).join('\n')), [settings?.allowedTools]);
   const save = async (patch: Partial<Settings>) => {
@@ -30,6 +36,15 @@ export function SettingsModal() {
     try {
       await api.post(`/api/agy/${what}`, { action });
       await loadHarnesses();
+    } catch (e) {
+      notify(String((e as Error).message), 'error');
+    }
+  };
+  const agyPerm = async (action: 'allow-bus' | 'allow-tests' | 'remove', dir?: string) => {
+    try {
+      await api.post('/api/agy/permissions', { action, dir });
+      await loadHarnesses();
+      notify(action === 'remove' ? 'Removed the rules Switchyard added' : 'Allow rule added');
     } catch (e) {
       notify(String((e as Error).message), 'error');
     }
@@ -80,6 +95,63 @@ export function SettingsModal() {
                   >
                     {agy.hooks ? 'Remove' : 'Install'}
                   </button>
+                </div>
+              )}
+              {h === 'agy' && d?.installed && (
+                <div className="perm-box small">
+                  <div className="row wrap">
+                    <span className={agy.permissions.bus ? 'ok-text' : 'warn-text'}>
+                      {agy.permissions.bus ? '✓' : '✗'} bus tools allowed
+                    </span>
+                    {!agy.permissions.bus && (
+                      <button className="btn btn-ghost btn-xs" onClick={() => agyPerm('allow-bus')}>
+                        Allow switchyard tools
+                      </button>
+                    )}
+                    <span className={agy.permissions.testCommands ? 'ok-text' : 'muted'}>
+                      {agy.permissions.testCommands ? '✓' : '○'} test commands allowed
+                    </span>
+                  </div>
+                  <div className="row wrap">
+                    <span className="muted">Let agents run tests and write files in:</span>
+                    {scratch && (
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => agyPerm('allow-tests', scratch)}
+                      >
+                        the scratch folder
+                      </button>
+                    )}
+                    {wsRoot && (
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => agyPerm('allow-tests', wsRoot)}
+                      >
+                        this workspace
+                      </button>
+                    )}
+                    {(agy.permissions.bus ||
+                      agy.permissions.testCommands ||
+                      agy.permissions.writeDirs.length > 0) && (
+                      <button className="btn btn-ghost btn-xs" onClick={() => agyPerm('remove')}>
+                        Remove all Switchyard rules
+                      </button>
+                    )}
+                  </div>
+                  <div className="muted">
+                    Writes to ~/.gemini/antigravity-cli/settings.json (a .bak is saved first). The
+                    test-command rule applies to every folder, because agy has one global settings
+                    file.
+                    {agy.permissions.writeDirs.length > 0 && (
+                      <> Write access: {agy.permissions.writeDirs.join(', ')}</>
+                    )}
+                  </div>
+                </div>
+              )}
+              {h === 'claude' && d?.installed && (
+                <div className="small ok-text">
+                  ✓ bus tools are pre-allowed for Claude nodes (per process, nothing is written to
+                  your Claude settings)
                 </div>
               )}
             </div>
