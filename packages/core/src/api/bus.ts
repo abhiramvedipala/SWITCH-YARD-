@@ -63,7 +63,10 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
       return reply.code(401).send({ error: 'unauthorized', message: 'bad hook secret' });
     const body =
       req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
-    return reply.send(await core.hooks.claude(nodeId, body));
+    // If Claude drops the connection (user answered in the terminal), stop waiting on a human.
+    const gone = new AbortController();
+    reply.raw.once('close', () => gone.abort());
+    return reply.send(await core.hooks.claude(nodeId, body, gone.signal));
   });
 
   const wrap =
