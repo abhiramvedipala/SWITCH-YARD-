@@ -33,7 +33,7 @@ export function screenTail(nodeId: string, lines = 12): string {
 }
 
 export interface AttentionItem {
-  kind: 'question' | 'needs_input' | 'unread';
+  kind: 'question' | 'needs_input' | 'unread' | 'permission';
   id: string;
   nodeId: string;
   nodeTitle: string;
@@ -41,6 +41,10 @@ export interface AttentionItem {
   text: string;
   createdAt: number;
   count?: number;
+  /** permission items only */
+  toolName?: string;
+  source?: 'claude' | 'agy';
+  options?: ('allow' | 'deny' | 'ask')[];
 }
 
 /**
@@ -247,8 +251,25 @@ export class StatusMonitor {
         createdAt: q.createdAt,
       });
     }
+    for (const p of this.permissions?.open(workspaceId) ?? []) {
+      const n = byId.get(p.nodeId);
+      if (!n) continue;
+      items.push({
+        kind: 'permission',
+        id: p.id,
+        nodeId: n.id,
+        nodeTitle: n.title,
+        workspaceId: n.workspaceId,
+        text: p.detail,
+        createdAt: p.createdAt,
+        toolName: p.toolName,
+        source: p.source,
+        options: p.options,
+      });
+    }
     for (const n of nodes) {
-      if (n.state === 'needs_input') {
+      // A permission card already says what is needed; don't also show the raw screen for the same wait.
+      if (n.state === 'needs_input' && !this.permissions?.hasOpen(n.id)) {
         items.push({
           kind: 'needs_input',
           id: `ni-${n.id}`,
