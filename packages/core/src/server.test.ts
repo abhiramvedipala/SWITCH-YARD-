@@ -36,3 +36,11 @@ describe('remote detection', async () => {
     expect(isRemoteRequest(req({ host: 'mac.tail1234.ts.net' }), 4777)).toBe(true);
   });
 });
+
+describe('funnel detection', async () => {
+  const { isFunnelRequest } = await import('./server.js');
+  it('flags Tailscale Funnel requests only', () => {
+    expect(isFunnelRequest(req({ host: 'x.ts.net', 'tailscale-funnel-request': '?1' }))).toBe(true);
+    expect(isFunnelRequest(req({ host: 'x.ts.net', 'tailscale-user-login': 'a@b.c' }))).toBe(false);
+  });
+});

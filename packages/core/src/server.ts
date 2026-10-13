@@ -35,6 +35,10 @@ export function isRemoteRequest(req: FastifyRequest, port: number): boolean {
   );
 }
 
+export function isFunnelRequest(req: FastifyRequest): boolean {
+  return req.headers['tailscale-funnel-request'] !== undefined;
+}
+
 class LoginLimiter {
   private hits = new Map<string, number[]>();
   constructor(
@@ -73,6 +77,12 @@ export async function buildServer(opts: { port?: number; dbPath?: string; quiet?
     if (!authHeader?.startsWith('Bearer ')) return false;
     return constantTimeEqual(authHeader.slice('Bearer '.length).trim(), token);
   };
+
+  // Tailscale Funnel publishes to the open internet; Switchyard is tailnet-only (Serve), so refuse it outright.
+  app.addHook('onRequest', async (req, reply) => {
+    if (isFunnelRequest(req))
+      return reply.code(403).send({ error: 'funnel traffic is not allowed' });
+  });
 
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/') || req.url === '/api/auth/login') return;
