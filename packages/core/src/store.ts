@@ -86,6 +86,15 @@ function toNode(r: NodeRow): NodeRec {
   };
 }
 
+/** The few columns the attention feed needs. Skips data_json (chat nodes keep whole transcripts there). */
+export interface NodeBrief {
+  id: string;
+  workspaceId: string;
+  type: NodeType;
+  title: string;
+  state: NodeState;
+}
+
 export class Store {
   constructor(public db: Db) {}
 
@@ -134,6 +143,20 @@ export class Store {
         .prepare('SELECT * FROM nodes WHERE workspace_id=? ORDER BY created_at')
         .all(workspaceId) as NodeRow[]
     ).map(toNode);
+  }
+
+  listNodeBriefs(workspaceId?: string): NodeBrief[] {
+    const sql = `SELECT id, workspace_id, type, title, state FROM nodes${workspaceId ? ' WHERE workspace_id=?' : ''} ORDER BY created_at`;
+    const rows = (
+      workspaceId ? this.db.prepare(sql).all(workspaceId) : this.db.prepare(sql).all()
+    ) as { id: string; workspace_id: string; type: NodeType; title: string; state: NodeState }[];
+    return rows.map((r) => ({
+      id: r.id,
+      workspaceId: r.workspace_id,
+      type: r.type,
+      title: r.title,
+      state: r.state,
+    }));
   }
 
   allNodes(): NodeRec[] {
