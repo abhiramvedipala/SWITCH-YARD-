@@ -129,6 +129,8 @@ export function Canvas() {
         connectionMode={ConnectionMode.Loose}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
+        // Off-screen nodes unmount (a terminal frees its xterm and replays its scrollback when it returns).
+        onlyRenderVisibleElements
         minZoom={0.15}
         maxZoom={2}
         fitView={nodes.length > 0}
