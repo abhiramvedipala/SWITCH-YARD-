@@ -110,6 +110,21 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  // F9: per-turn usage (cost/tokens) so node cards and run results can show what a turn spent.
+  `
+  CREATE TABLE usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    harness TEXT NOT NULL,
+    node_id TEXT,
+    run_id TEXT,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX usage_node ON usage (node_id);
+  CREATE INDEX usage_run ON usage (run_id);
+  `,
 ];
 
 export function openDb(path: string = DB_PATH): Db {
