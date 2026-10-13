@@ -117,3 +117,56 @@ describe('Claude PermissionRequest hook', () => {
     expect((await pending).json()).toEqual({});
   });
 });
+
+describe('agy PreToolUse ask_permission hook (capability-authenticated relay route)', () => {
+  const agyPost = (payload: Record<string, unknown>) =>
+    built.app.inject({
+      method: 'POST',
+      url: '/bus/agy/hook',
+      headers: {
+        host: '127.0.0.1:4792',
+        'x-switchyard-node': nodeId,
+        'x-switchyard-cap': built.core.caps.issue(
+          nodeId,
+          built.core.store.getNode(nodeId)!.workspaceId,
+        ).capability,
+      },
+      payload: { event: 'PreToolUse', payload },
+    });
+  const ask = { toolCall: { name: 'ask_permission', args: { command: 'rm -rf build' } } };
+
+  it('ignores other tools (no decision)', async () => {
+    const res = await agyPost({ toolCall: { name: 'run_command', args: { command: 'ls' } } });
+    expect(res.json()).toEqual({});
+    expect(built.core.permissions.open()).toEqual([]);
+  });
+
+  it('shows the request with Allow, Deny and Ask-in-terminal; Allow returns allow', async () => {
+    const pending = agyPost(ask);
+    await until(() => built.core.permissions.open().length === 1);
+    const item = openOne();
+    expect(item).toMatchObject({
+      source: 'agy',
+      toolName: 'ask_permission',
+      options: ['allow', 'deny', 'ask'],
+    });
+    expect(item.detail).toContain('rm -rf build');
+    built.core.permissions.decide(item.id, 'allow');
+    expect((await pending).json().decision).toBe('allow');
+  });
+
+  it('Deny returns deny, and "ask in terminal" returns ask', async () => {
+    let pending = agyPost(ask);
+    await until(() => built.core.permissions.open().length === 1);
+    built.core.permissions.decide(openOne().id, 'deny');
+    expect((await pending).json().decision).toBe('deny');
+    pending = agyPost(ask);
+    await until(() => built.core.permissions.open().length === 1);
+    built.core.permissions.decide(openOne().id, 'ask');
+    expect((await pending).json().decision).toBe('ask');
+  });
+
+  it('times out to ask, never allow', async () => {
+    expect((await agyPost(ask)).json().decision).toBe('ask');
+  });
+});
