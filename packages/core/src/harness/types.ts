@@ -56,6 +56,8 @@ export interface TurnResult {
   structured?: unknown;
   sessionId: string | null;
   usage?: unknown;
+  /** Tool calls that were denied because nobody could approve them (driven turns only). */
+  denials?: string[];
   error?: string;
 }
 
