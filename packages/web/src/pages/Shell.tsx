@@ -44,11 +44,30 @@ function useLiveEvents() {
         refetch('runs', 250);
       }
     });
-    // Screen-based states (prompt on screen) change without events; poll the cheap feed.
-    const t = setInterval(() => refetch('attention', 0), 3000);
+    // Screen-based states (prompt on screen) change without events, so poll the cheap feed, but only while
+    // the tab is visible: a hidden tab costs nothing, and it refreshes the moment you come back.
+    let t: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (t === null) t = setInterval(() => refetch('attention', 0), 3000);
+    };
+    const stop = () => {
+      if (t !== null) clearInterval(t);
+      t = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else {
+        refetch('attention', 0);
+        refetch('graph', 0);
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       off();
-      clearInterval(t);
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 }
