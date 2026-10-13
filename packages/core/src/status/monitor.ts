@@ -1,4 +1,4 @@
-import type { Store, NodeRec, NodeState } from '../store.js';
+import type { Store, NodeBrief, NodeState } from '../store.js';
 import type { Bus } from '../bus/service.js';
 import { ptys } from '../pty/manager.js';
 import { getHarness } from '../harness/index.js';
@@ -81,20 +81,32 @@ export class StatusMonitor {
     t.unref();
   }
 
+  /** 1 s while terminals exist (status needs to feel live), 5 s when there is nothing to watch. */
   startLoop(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => this.tick(), 1000);
-    this.timer.unref();
+    if (this.timer || this.disposed) return;
+    const next = () => {
+      this.timer = setTimeout(
+        () => {
+          if (this.disposed) return;
+          this.tick();
+          next();
+        },
+        ptys.ids().length > 0 ? 1000 : 5000,
+      );
+      this.timer.unref();
+    };
+    next();
   }
 
   stopLoop(): void {
     this.disposed = true;
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
 
   noteUserInput(nodeId: string): void {
     this.lastInputAt.set(nodeId, Date.now());
+    this.scannedAt.delete(nodeId); // re-read the screen: the dismissed prompt changes the answer
     // Whatever prompt is on screen now has been answered; don't re-flag it until the screen changes.
     if (this.store.getNode(nodeId)?.state === 'needs_input')
       this.dismissedTail.set(nodeId, screenTail(nodeId, 8));
@@ -111,36 +123,47 @@ export class StatusMonitor {
     if (state === 'idle') this.later(() => this.maybeNudge(nodeId), 500);
   }
 
+  /** lastOutputAt of each terminal when its screen was last scanned for prompts (skip unchanged screens). */
+  private scannedAt = new Map<string, number>();
+  private prompting = new Map<string, boolean>();
+
   tick(): void {
-    for (const n of this.store.allNodes()) {
-      if (n.type !== 'agent-terminal' && n.type !== 'terminal') continue;
-      const s = ptys.get(n.id);
-      if (!s) continue;
+    // Iterate live terminals only (not every node row: chat nodes carry whole transcripts in data_json).
+    for (const id of ptys.ids()) {
+      const s = ptys.get(id);
+      const n = s && this.store.getNode(id);
+      if (!s || !n) continue;
       if (s.exited) {
-        this.set(n.id, 'exited');
+        this.set(id, 'exited');
         continue;
       }
-      const h = getHarness(n.harness);
-      const tail = screenTail(n.id, 8);
-      const prompting =
-        tail !== this.dismissedTail.get(n.id) &&
-        (h.needsInputPatterns ?? []).some((re) => re.test(tail));
+      if (this.scannedAt.get(id) !== s.lastOutputAt) {
+        this.scannedAt.set(id, s.lastOutputAt);
+        const h = getHarness(n.harness);
+        const tail = screenTail(id, 8);
+        this.prompting.set(
+          id,
+          tail !== this.dismissedTail.get(id) &&
+            (h.needsInputPatterns ?? []).some((re) => re.test(tail)),
+        );
+      }
+      const prompting = this.prompting.get(id) === true;
       if (prompting) {
-        this.set(n.id, 'needs_input');
+        this.set(id, 'needs_input');
         continue;
       }
       if (n.state === 'needs_input' && !prompting) {
         // Prompt is gone from the screen: someone answered it.
-        this.set(n.id, this.hookDriven.has(n.id) ? 'working' : 'idle');
+        this.set(id, this.hookDriven.has(id) ? 'working' : 'idle');
       }
-      if (this.hookDriven.has(n.id)) continue;
+      if (this.hookDriven.has(id)) continue;
       const quietFor = Date.now() - s.lastOutputAt;
       const sinceStart = Date.now() - s.startedAt;
       if (quietFor < QUIET_MS && sinceStart > 1500) {
-        const typedRecently = Date.now() - (this.lastInputAt.get(n.id) ?? 0) < 1500;
-        if (!typedRecently) this.set(n.id, 'working');
+        const typedRecently = Date.now() - (this.lastInputAt.get(id) ?? 0) < 1500;
+        if (!typedRecently) this.set(id, 'working');
       } else if (quietFor >= QUIET_MS) {
-        this.set(n.id, 'idle');
+        this.set(id, 'idle');
       }
     }
   }
@@ -236,8 +259,8 @@ export class StatusMonitor {
 
   attention(workspaceId?: string): AttentionItem[] {
     const items: AttentionItem[] = [];
-    const nodes = workspaceId ? this.store.listNodes(workspaceId) : this.store.allNodes();
-    const byId = new Map(nodes.map((n) => [n.id, n] as [string, NodeRec]));
+    const nodes = this.store.listNodeBriefs(workspaceId);
+    const byId = new Map(nodes.map((n) => [n.id, n] as [string, NodeBrief]));
     for (const q of this.bus.openQuestions(workspaceId)) {
       const n = byId.get(q.nodeId);
       if (!n) continue;
