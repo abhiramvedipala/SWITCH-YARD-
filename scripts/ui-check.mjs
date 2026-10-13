@@ -47,6 +47,7 @@ const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js
     SWITCHYARD_HOME: home,
     SWITCHYARD_PORT: String(port),
     SWITCHYARD_CLAUDE_PROJECTS: claudeProjects,
+    SWITCHYARD_SCRATCH_ROOT: join(root, 'scratch'),
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
