@@ -195,11 +195,11 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [x] **F2** run dirs out of the repo
 - [x] **F3** permissions so bus tools don't prompt
 - [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
-- [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; UI-check for the Allow/Deny card still to add)
+- [x] **F5** authoritative status + Allow/Deny from the sidebar (held-open PermissionRequest hooks; ui-checks for Allow / Deny / timeout and the folder-trust prompt)
 - [ ] **F6** identity and capability hygiene
 - [x] **F7** sessions: agy conversation list from `~/.gemini/antigravity-cli/brain` (fixture tests)
 - [ ] **F8** persistent agy driven sessions (skipped for now)
-- [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`; UI chips on node cards still to add)
+- [x] **F9** usage meter (per-turn `usage` table, `GET /api/usage`, spend badge on chat nodes, usage on run step rows and result cards)
 - [~] **F10** remote hardening: Funnel traffic refused with 403, remote detection via forwarding headers; `tailscale whois` verification still to do
 - [ ] **F11** background-session spike (skipped)
 - [ ] **F12** polish: code-splitting only so far
@@ -210,6 +210,17 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 **What changed:** `npm install` succeeded with prebuilt binaries, but every PTY failed with `posix_spawnp failed`: node-pty 1.1.0's tarball ships `spawn-helper` without the exec bit, so `scripts/postinstall.mjs` restores it. The own-folder guard broke on `/var` → `/private/var` for not-yet-created subpaths (fixed in `paths.real()`); the e2e tests resolved `scratch/` from `process.cwd()` (now from the test file); ui-check now finds Playwright's cached Chromium or Google Chrome.
 **Results on arm64:** lint clean · 139 vitest · e2e (bus + mock run with real git evidence and `pytest` passing) · 27/27 ui-checks · selftest idle RSS 31 MB, CPU 0.7 %.
 **Note:** `claude` here is 2.1.272 (the container had 2.1.296). `--permission-prompts none` needs ≥ 2.1.259, so still fine; `claude --help` was not re-diffed against the adapter flags yet (done in the acceptance phase).
+
+### F5 leftover: permission cards and the trust prompt in the browser check
+
+**What changed:** `scripts/ui-check.mjs` POSTs a real `PermissionRequest` hook to a mock node's hook URL (`/bus/hook/claude/<node>/<secret>`), clicks **Allow once** / **Deny** and asserts the exact hook JSON; a third request with no click expires to `{}` under the test-only `SWITCHYARD_PERMISSION_TIMEOUT_MS=1500`. Claude's folder-trust dialog ("Do you trust the files in this folder?" + "1. Yes, proceed" in the last 20 screen lines) is now detected in `status/monitor.ts` for any terminal → needs_input item "Accept the folder trust prompt in this node" with an **Accept** button (Enter); free text at that prompt is still refused (409). An answered prompt only counts output written after the answer (`PtySession.totalBytes`), so it no longer re-flags when the next line prints.
+**How to try it:** `npm run test:ui` → 8 `F5` checks; vitest `status/trust-prompt.test.ts` (6).
+**Unverified:** the real dialog wording/line count (only a real `claude` in an untrusted folder can confirm; widen `TRUST_LINES` in monitor.ts if needed).
+
+### F9 leftover: usage on runs
+
+**What changed:** usage rows carry `step_id` (migration 3); `GET /api/runs/:id` returns `usage {turns, costUsd, inputTokens, outputTokens}` on the run and on each step from one grouped query per read. Web: muted `… tok · $…` badge on each step row and a `Usage:` line on the result card, formatter shared with the chat-node badge (`bits.tsx`). The mock harness reports 100 in / 50 out tokens per turn and no price, so a mock run is 750 tokens.
+**How to try it:** Runs → mock/mock/mock → Approve & start → card reads `Usage: 750 tokens`, each step `300 tok`. e2e asserts the run total equals `SUM` over the usage table; ui-check F9 ×3.
 
 ### F4: delivery without typing
 

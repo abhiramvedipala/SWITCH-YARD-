@@ -63,7 +63,7 @@ connected to by an edge.
 Other views and panels:
 
 - **Board:** shared tasks (Open / In progress / Done). Agents use `list_tasks`, `claim_task` and `complete_task`; you drag cards or "Assign to…" an agent.
-- **Runs:** goal → editable plan → approve → build → review (up to 3 rounds) → result card with evidence (files touched, `git diff --stat`, test output, or an honest "unverified").
+- **Runs:** goal → editable plan → approve → build → review (up to 3 rounds) → result card with evidence (files touched, `git diff --stat`, test output, or an honest "unverified"). Every step row carries a muted `1.2k tok · $0.03` badge and the card has a `Usage:` total (tokens only when the harness reports no price, e.g. Antigravity or the mock).
 - **Needs you:** questions from `ask_user`, permission prompts read off the screen, and idle agents with unread messages. Each item has a reply box.
 - **Ask Switchyard:** project chat that sees a snapshot of the canvas. It defaults to Antigravity to save Claude usage.
 - **Import sessions:** resume past Claude Code sessions, Antigravity conversations, or Claude.ai / ChatGPT export files (imported as read-only docs).
