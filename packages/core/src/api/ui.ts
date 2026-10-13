@@ -20,7 +20,15 @@ import { listClaudeSessions } from '../sessions/claude.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
 import { runCapture } from '../harness/util.js';
-import { scratchRoot } from '../paths.js';
+import { scratchRoot, assertSafeCwd } from '../paths.js';
+import {
+  addAllowRules,
+  removeAllowRules,
+  allowRuleState,
+  BUS_RULE,
+  TEST_COMMAND_RULE,
+  writeRuleFor,
+} from '../harness/agy-settings.js';
 import type { NodeType } from '../store.js';
 
 function fail(reply: FastifyReply, err: unknown) {
@@ -126,7 +134,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       return {
         detections: core.detections,
         available: runs.available,
-        agy: { mcpEntry: hasAgyMcpEntry(), hooks: hasAgyHooks() },
+        agy: { mcpEntry: hasAgyMcpEntry(), hooks: hasAgyHooks(), permissions: allowRuleState() },
       };
     }),
   );
@@ -146,6 +154,26 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       if (action === 'install') installAgyHooks();
       else removeAgyHooks();
       return { hooks: hasAgyHooks() };
+    }),
+  );
+  /** Opt-in allow rules in agy's global settings.json. Each call is one explicit click in Settings. */
+  app.post(
+    '/api/agy/permissions',
+    h((req) => {
+      const b = z
+        .object({
+          action: z.enum(['allow-bus', 'allow-tests', 'remove']),
+          dir: z.string().optional(),
+        })
+        .parse(req.body);
+      if (b.action === 'allow-bus') addAllowRules([BUS_RULE]);
+      else if (b.action === 'allow-tests') {
+        if (!b.dir) throw new Error('allow-tests needs the folder agents may write in');
+        // Same guard as everything else: never grant write access inside the app's own folders.
+        assertSafeCwd(b.dir);
+        addAllowRules([TEST_COMMAND_RULE, writeRuleFor(resolve(b.dir))]);
+      } else removeAllowRules();
+      return allowRuleState();
     }),
   );
 
