@@ -169,3 +169,23 @@ origin checks; worktree button and push-to-talk.
 **How to try it:** `npm start` → workspace → **+ Add → Mock agent** twice →
 connect them → in one, type `peers`, then `ask hello?` and answer in Needs you.
 Then open Runs and plan the hello.py goal with the Mock harness.
+
+## F-phases (SWITCHYARD_FINAL_PROMPT.md)
+
+- [x] **F0** macOS bring-up (done by the owner session)
+- [ ] **F1** agy environment probe (needs real agy; owner check pending)
+- [x] **F2** run dirs out of the repo
+- [x] **F3** permissions so bus tools don't prompt
+- [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
+- [ ] **F5** authoritative status + Allow/Deny from the sidebar
+- [ ] **F6** identity and capability hygiene
+- [ ] **F7** sessions: agy conversation list
+- [ ] **F8** persistent agy driven sessions (skipped for now)
+- [ ] **F9** usage meter
+- [ ] **F10** remote hardening
+- [ ] **F11** background-session spike (skipped)
+- [ ] **F12** polish: code-splitting only so far
+
+### F4: delivery without typing
+**What changed:** every Claude node gets an HTTP `Stop` hook (`/bus/hook/claude/<node>/<secret>`, per-node secret rotated with the capability); core answers with block / context / `{}` from the tested decision tables and stores `last_assistant_message` as the node summary. agy gets `hook-agy.js` + `POST /bus/agy/hook` (PreInvocation / Stop). The PTY nudge is last-resort only (off for Claude unless opted in, hook-driven or mock nodes only, never while needs_input, counted in `monitor.nudgeCount`). Human replies go through `pty/input.ts` (bracketed paste, `Reply: ` prefix, control chars stripped) and free text is refused while a node is in needs_input.
+**How to try it:** `cd packages/core && npx vitest run src/bus/hook-route.test.ts src/api/reply.test.ts src/pty`.
