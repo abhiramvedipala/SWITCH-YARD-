@@ -28,11 +28,19 @@ export function scratchRoot(): string {
   return process.env.SWITCHYARD_SCRATCH_ROOT ?? join(SWITCHYARD_HOME, 'scratch');
 }
 
+/** realpath that also works for paths that don't exist yet: resolve the nearest existing ancestor. */
 function real(p: string): string {
-  try {
-    return realpathSync(resolve(p));
-  } catch {
-    return resolve(p);
+  let cur = resolve(p);
+  let rest = '';
+  for (;;) {
+    try {
+      return rest ? join(realpathSync(cur), rest) : realpathSync(cur);
+    } catch {
+      const parent = dirname(cur);
+      if (parent === cur) return resolve(p);
+      rest = rest ? join(cur.slice(parent.length + 1), rest) : cur.slice(parent.length + 1);
+      cur = parent;
+    }
   }
 }
 

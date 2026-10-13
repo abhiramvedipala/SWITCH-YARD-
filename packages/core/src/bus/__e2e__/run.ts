@@ -1,9 +1,10 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-e2e-home-'));
-process.env.SWITCHYARD_SCRATCH_ROOT = join(process.cwd(), '../../scratch');
+process.env.SWITCHYARD_SCRATCH_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../../../scratch');
 
 const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');

@@ -21,7 +21,8 @@
     "test:ui": "npm run build && node scripts/ui-check.mjs",
     "stop": "node scripts/stop.mjs",
     "selftest": "node scripts/selftest.mjs",
-    "mac:app": "bash scripts/mac/make-app.sh"
+    "mac:app": "bash scripts/mac/make-app.sh",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

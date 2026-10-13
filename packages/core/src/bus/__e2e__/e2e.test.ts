@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 beforeAll(() => {
   process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-vitest-home-'));
-  process.env.SWITCHYARD_SCRATCH_ROOT = join(process.cwd(), '../../scratch');
+  process.env.SWITCHYARD_SCRATCH_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../../../scratch');
 });
 
 describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {

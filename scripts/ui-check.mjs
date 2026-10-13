@@ -95,9 +95,12 @@ try {
 
   const exe =
     process.env.CHROMIUM_PATH ||
-    ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', '/opt/pw-browsers/chromium'].find(
-      existsSync,
-    );
+    [
+      chromium.executablePath(), // Playwright's own cache (~/Library/Caches/ms-playwright on macOS)
+      '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+      '/opt/pw-browsers/chromium',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    ].find(existsSync);
   browser = await chromium.launch({ executablePath: exe, headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
