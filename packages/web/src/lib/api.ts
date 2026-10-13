@@ -16,6 +16,18 @@ export function setToken(token: string): void {
   }
 }
 
+/**
+ * The Mac launcher opens http://127.0.0.1:4777/#token=<token>. A URL fragment is never sent to any server;
+ * we store the token, then remove it from the address bar and history entry straight away.
+ */
+export function consumeTokenFromHash(): boolean {
+  const m = /^#token=([A-Za-z0-9_-]{16,128})$/.exec(window.location.hash);
+  if (!m) return false;
+  setToken(m[1]!);
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return true;
+}
+
 export function clearToken(): void {
   try {
     localStorage.removeItem(TOKEN_KEY);
