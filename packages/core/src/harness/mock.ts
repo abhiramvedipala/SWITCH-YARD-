@@ -35,6 +35,7 @@ export const mock: Harness = {
           text: string;
           sessionId: string | null;
           structured?: unknown;
+          denials?: string[];
           ok?: boolean;
           error?: string;
         }
@@ -67,6 +68,7 @@ export const mock: Harness = {
       ok,
       text: result?.text ?? text,
       structured: result?.structured,
+      denials: result?.denials,
       sessionId: result?.sessionId ?? null,
       error: ok
         ? undefined

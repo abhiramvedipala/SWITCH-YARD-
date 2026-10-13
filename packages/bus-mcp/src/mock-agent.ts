@@ -163,6 +163,8 @@ async function driven() {
       ok: true,
       text: 'Created hello.py (reverse_string) and test_hello.py (3 pytest tests).',
       sessionId,
+      // "[deny:<tool>: <detail>]" in the instruction simulates a driven turn whose tool call was denied.
+      denials: [...p.matchAll(/\[deny:([^\]]+)\]/g)].map((m) => m[1]),
     });
     return;
   }
