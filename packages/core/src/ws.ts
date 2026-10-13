@@ -31,13 +31,25 @@ export function originAllowed(req: FastifyRequest): boolean {
   }
 }
 
+/** A `https://<machine>.<tailnet>.ts.net` origin, i.e. the page was served through Tailscale Serve. */
+export function isTailnetOrigin(req: FastifyRequest): boolean {
+  try {
+    return new URL(req.headers.origin ?? '').hostname.endsWith('.ts.net');
+  } catch {
+    return false;
+  }
+}
+
 export function registerWs(app: FastifyInstance, deps: WsDeps): void {
   app.get('/ws', { websocket: true }, (socket: WebSocket, req) => {
-    if (!originAllowed(req)) {
+    // A remote upgrade only reaches this handler after the server's onRequest hook verified its
+    // tailnet identity, so `remote` here means "verified remote". A ts.net origin without that
+    // (e.g. any Funnel-published page on the internet) is refused.
+    const remote = deps.isRemote(req);
+    if (!originAllowed(req) || (isTailnetOrigin(req) && !remote)) {
       socket.close(4403, 'origin not allowed');
       return;
     }
-    const remote = deps.isRemote(req);
     let authed = false;
     const authTimer = setTimeout(() => !authed && socket.close(4401, 'auth timeout'), 5000);
     const send = (obj: unknown) => {
