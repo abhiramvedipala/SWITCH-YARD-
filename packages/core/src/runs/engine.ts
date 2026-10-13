@@ -5,7 +5,8 @@ import { randomId } from '../auth/token.js';
 import { hub } from '../events.js';
 import { getHarness, isHarnessId } from '../harness/index.js';
 import type { HarnessId, TurnResult } from '../harness/types.js';
-import { REPO_ROOT } from '../paths.js';
+import { scratchRoot, assertSafeCwd } from '../paths.js';
+import { runCapture } from '../harness/util.js';
 import { getSetting } from '../db/index.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
 import {
@@ -172,6 +173,7 @@ export interface CreateRunInput {
   planner?: string;
   builder?: string;
   reviewer?: string;
+  allowOwnFolder?: boolean;
 }
 
 export class RunEngine {
@@ -300,10 +302,38 @@ export class RunEngine {
     const id = randomId(8);
     let cwd: string;
     if (input.location === 'scratch') {
-      cwd = join(REPO_ROOT, 'scratch', 'runs', id);
+      const slug =
+        goal
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 24) || 'run';
+      const stamp = new Date()
+        .toISOString()
+        .slice(0, 16)
+        .replace(/[-:T]/g, '')
+        .replace(/^(\d{8})/, '$1-');
+      cwd = join(scratchRoot(), `${stamp}-${slug}-${id.slice(0, 4)}`);
       mkdirSync(cwd, { recursive: true });
+      // A real repo so the result card's git diff evidence works.
+      await runCapture('git', ['init', '-q'], { cwd });
+      await runCapture(
+        'git',
+        [
+          '-c',
+          'user.name=Switchyard',
+          '-c',
+          'user.email=switchyard@localhost',
+          'commit',
+          '--allow-empty',
+          '-qm',
+          'init',
+        ],
+        { cwd },
+      );
     } else {
       cwd = input.cwd || ws.rootDir;
+      assertSafeCwd(cwd, input.allowOwnFolder);
       if (!existsSync(cwd) || !statSync(cwd).isDirectory())
         throw new Error(`folder does not exist: ${cwd}`);
     }
@@ -505,14 +535,12 @@ export class RunEngine {
   /** On boot, anything mid-flight was interrupted by the restart. */
   onBoot(): void {
     this.db.prepare(`UPDATE runs SET status='paused' WHERE status='running'`).run();
-    this.db
-      .prepare(`UPDATE runs SET status='failed', result_json=? WHERE status='planning'`)
-      .run(
-        JSON.stringify({
-          summary: 'Interrupted by a core restart while planning',
-          errors: ['restart'],
-        }),
-      );
+    this.db.prepare(`UPDATE runs SET status='failed', result_json=? WHERE status='planning'`).run(
+      JSON.stringify({
+        summary: 'Interrupted by a core restart while planning',
+        errors: ['restart'],
+      }),
+    );
     this.db.prepare(`UPDATE run_steps SET status='pending' WHERE status='running'`).run();
   }
 
