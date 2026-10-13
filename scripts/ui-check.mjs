@@ -39,7 +39,8 @@ writeFileSync(
   ].join('\n') + '\n',
 );
 
-const port = 4799;
+// Override so several checkouts can run the check at the same time.
+const port = Number(process.env.SWITCHYARD_UI_CHECK_PORT ?? 4799);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js')], {
   env: {
