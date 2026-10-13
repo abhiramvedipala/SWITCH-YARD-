@@ -17,8 +17,11 @@ export interface RunFile {
   workspaceId: string;
   coreUrl: string;
   capability: string;
+  /** Per-node secret embedded in the Claude HTTP hook URL; rotated together with the capability. */
+  hookSecret?: string;
 }
 
+const DUMMY_SECRET = randomId(24);
 const BY_CWD_DIR = join(RUN_DIR, 'by-cwd');
 
 export function cwdKey(cwd: string): string {
@@ -33,15 +36,19 @@ function writeSecret(path: string, content: string): void {
 /** Per-node capability, stored as a 0600 file the node's bus-mcp process reads. */
 export class Capabilities {
   private caps = new Map<string, string>();
+  private hookSecrets = new Map<string, string>();
 
   constructor(private coreUrl: string) {}
 
   issue(nodeId: string, workspaceId: string, cwd?: string | null): RunFile {
     ensureDirs();
+    // Fresh credentials on every (re)spawn: whatever the previous process held stops working.
     const capability = randomId(24);
-    const rf: RunFile = { nodeId, workspaceId, coreUrl: this.coreUrl, capability };
+    const hookSecret = randomId(24);
+    const rf: RunFile = { nodeId, workspaceId, coreUrl: this.coreUrl, capability, hookSecret };
     writeSecret(join(RUN_DIR, `${nodeId}.json`), JSON.stringify(rf));
     this.caps.set(nodeId, capability);
+    this.hookSecrets.set(nodeId, hookSecret);
     if (cwd) {
       if (!existsSync(BY_CWD_DIR)) mkdirSync(BY_CWD_DIR, { recursive: true, mode: 0o700 });
       writeSecret(
@@ -60,6 +67,7 @@ export class Capabilities {
       try {
         const rf = JSON.parse(readFileSync(p, 'utf8')) as RunFile;
         if (rf.capability) this.caps.set(id, rf.capability);
+        if (rf.hookSecret) this.hookSecrets.set(id, rf.hookSecret);
       } catch {
         // ignore corrupt file; it gets reissued on next start
       }
@@ -72,8 +80,23 @@ export class Capabilities {
     return !!cap && constantTimeEqual(cap, capability);
   }
 
+  /** URL for the Claude HTTP hooks of this node (contains the secret, so it only goes into --settings). */
+  hookUrl(nodeId: string): string | undefined {
+    const secret = this.hookSecrets.get(nodeId);
+    return secret ? `${this.coreUrl}/bus/hook/claude/${nodeId}/${secret}` : undefined;
+  }
+
+  /** Constant-time check; unknown node and wrong secret are indistinguishable to the caller. */
+  verifyHook(nodeId: string | undefined, secret: string | undefined): boolean {
+    const real = nodeId ? this.hookSecrets.get(nodeId) : undefined;
+    // Always run one comparison so timing doesn't reveal whether the node exists.
+    const ok = constantTimeEqual(real ?? DUMMY_SECRET, secret ?? '');
+    return !!real && !!secret && ok;
+  }
+
   revoke(nodeId: string): void {
     this.caps.delete(nodeId);
+    this.hookSecrets.delete(nodeId);
     rmSync(join(RUN_DIR, `${nodeId}.json`), { force: true });
     if (existsSync(BY_CWD_DIR)) {
       for (const f of readdirSync(BY_CWD_DIR)) {
