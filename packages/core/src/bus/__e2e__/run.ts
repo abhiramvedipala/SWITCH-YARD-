@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-e2e-home-'));
+process.env.SWITCHYARD_SCRATCH_ROOT = join(process.cwd(), '../../scratch');
 
 const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');
@@ -37,6 +38,10 @@ check(
   `files touched: ${run.files.join(', ')}`,
 );
 check(run.helloHasDocstring, 'hello.py was changed by the review round (docstring added)');
+check(
+  run.gitStatus.includes('hello.py'),
+  'result card has real git evidence (scratch run is a git repo)',
+);
 console.log(`  tests evidence: ${run.tests}`);
 
 process.exit(failed ? 1 : 0);

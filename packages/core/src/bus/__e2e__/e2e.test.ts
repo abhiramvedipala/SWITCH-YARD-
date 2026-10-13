@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 beforeAll(() => {
   process.env.SWITCHYARD_HOME = mkdtempSync(join(tmpdir(), 'sy-vitest-home-'));
+  process.env.SWITCHYARD_SCRATCH_ROOT = join(process.cwd(), '../../scratch');
 });
 
 describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
@@ -25,6 +26,7 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
     expect(r.approved).toBe(true);
     expect(r.reviewRounds).toBeGreaterThanOrEqual(2);
     expect(r.helloHasDocstring).toBe(true);
+    expect(r.gitStatus).toContain('hello.py');
     expect(r.files).toEqual(expect.arrayContaining(['hello.py', 'test_hello.py']));
   }, 60_000);
 });

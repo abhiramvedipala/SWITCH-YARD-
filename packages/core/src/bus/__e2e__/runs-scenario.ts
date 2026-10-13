@@ -10,11 +10,11 @@ export async function runRunsScenario(log: (s: string) => void = () => {}) {
   const home = process.env.SWITCHYARD_HOME;
   if (!home || !home.includes(tmpdir())) throw new Error('set SWITCHYARD_HOME to a temp dir first');
   const { createCore } = await import('../../core.js');
-  const { REPO_ROOT } = await import('../../paths.js');
+  const { scratchRoot } = await import('../../paths.js');
   const core = createCore({ dbPath: join(home, 'runs.db'), coreUrl: 'http://127.0.0.1:1' });
   core.runs.available = ['mock'];
-  mkdirSync(join(REPO_ROOT, 'scratch'), { recursive: true });
-  const ws = core.store.createWorkspace('runs', join(REPO_ROOT, 'scratch'));
+  mkdirSync(scratchRoot(), { recursive: true });
+  const ws = core.store.createWorkspace('runs', scratchRoot());
   const goal =
     'Create hello.py with a function that reverses a string and pytest tests; have the other agent review';
   const run = await core.runs.create(ws.id, {
@@ -48,6 +48,7 @@ export async function runRunsScenario(log: (s: string) => void = () => {}) {
     approved: res.approved,
     reviewRounds: res.reviewRounds,
     files: [...res.files.added, ...res.files.modified],
+    gitStatus: res.git?.status ?? '',
     helloHasDocstring: hello.includes('"""'),
     tests: res.tests.unverified
       ? `unverified (${res.tests.unverified})`
