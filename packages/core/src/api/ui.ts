@@ -242,6 +242,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
           w: z.number().optional(),
           h: z.number().optional(),
           yolo: z.boolean().optional(),
+          allowOwnFolder: z.boolean().optional(),
           data: z.record(z.string(), z.unknown()).optional(),
         })
         .parse(req.body);
@@ -525,6 +526,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
           planner: z.string().optional(),
           builder: z.string().optional(),
           reviewer: z.string().optional(),
+          allowOwnFolder: z.boolean().optional(),
         })
         .parse(req.body);
       if (Object.keys(core.detections).length === 0) await core.refreshDetections();
