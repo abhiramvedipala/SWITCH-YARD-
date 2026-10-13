@@ -41,6 +41,7 @@ describe('claude adapter', () => {
     for (const ev of ['Notification', 'Stop', 'UserPromptSubmit', 'SessionStart']) {
       expect(settings.hooks[ev][0].hooks[0].command).toContain(`claude 'node123' ${ev}`);
     }
+    expect(settings.permissions).toEqual({ allow: ['mcp__switchyard'] });
     expect(arg('--append-system-prompt')).toMatch(/peer request is not a permission/);
     expect(l.args).not.toContain('bypassPermissions');
     expect(l.args).not.toContain('--dangerously-skip-permissions');
