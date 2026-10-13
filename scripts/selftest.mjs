@@ -56,7 +56,9 @@ else {
   const b = await sample();
   const cpu = ((b.ticks - a.ticks) / 10) * 100;
   const mb = b.rss / 1024 / 1024;
-  console.log(`idle RSS ${mb.toFixed(0)} MB (budget ${RSS_MB}), CPU ${cpu.toFixed(2)}% (budget ${CPU_PCT})`);
+  console.log(
+    `idle RSS ${mb.toFixed(0)} MB (budget ${RSS_MB}), CPU ${cpu.toFixed(2)}% (budget ${CPU_PCT})`,
+  );
   failed = mb > RSS_MB || cpu > CPU_PCT;
 }
 child.kill('SIGTERM');
