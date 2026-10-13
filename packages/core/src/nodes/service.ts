@@ -75,6 +75,9 @@ export class NodeService {
       PTY_TYPES.includes(type) || type === 'agent-chat'
         ? this.resolveCwd(ws.rootDir, input.cwd)
         : null;
+    if (cwd && harness && harness !== 'shell' && harness !== 'mock') {
+      assertSafeCwd(cwd, input.allowOwnFolder);
+    }
     const [dw, dh] = DEFAULT_SIZE[type];
     const existing = this.store.listNodes(workspaceId).filter((n) => !n.data.project);
     const count = existing.length;
