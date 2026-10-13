@@ -245,6 +245,19 @@ function ResultCard({ run }: { run: Run }) {
             ))}
           </div>
         )}
+        {r.denials && r.denials.length > 0 && (
+          <div className="warn-text">
+            <b>Denied tool calls</b> (no one was there to approve them):
+            {r.denials.map((d, i) => (
+              <div key={i} className="small mono">
+                {d}
+              </div>
+            ))}
+            <div className="muted small">
+              Add them to the allow-list in Settings if you want agents to do this unattended.
+            </div>
+          </div>
+        )}
         {r.errors && r.errors.length > 0 && (
           <div className="error small">
             {r.errors.map((e, i) => (

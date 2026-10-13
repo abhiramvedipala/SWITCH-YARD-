@@ -121,6 +121,7 @@ export interface RunResult {
   tests?: { command?: string; exitCode?: number | null; output?: string; unverified?: string };
   findings?: Finding[];
   errors?: string[];
+  denials?: string[];
 }
 
 export interface Run {
