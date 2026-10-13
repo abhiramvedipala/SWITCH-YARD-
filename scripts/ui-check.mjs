@@ -49,6 +49,8 @@ const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js
     SWITCHYARD_PORT: String(port),
     SWITCHYARD_CLAUDE_PROJECTS: claudeProjects,
     SWITCHYARD_SCRATCH_ROOT: join(root, 'scratch'),
+    // Test-only knob (default 590 s): the F5 timeout check waits for a permission request to expire.
+    SWITCHYARD_PERMISSION_TIMEOUT_MS: '1500',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -294,6 +296,114 @@ try {
     states.every((s) => ['idle', 'working'].includes(s)),
     `P4 status chips report states (${states.join(', ')})`,
   );
+
+  // ---------------- F5: PermissionRequest card (Allow / Deny / timeout) and the folder-trust prompt
+  // The mock node stands in for Claude: its run file carries the same per-node hook secret.
+  const hookSecret = JSON.parse(readFileSync(join(home, 'run', `${A.id}.json`), 'utf8')).hookSecret;
+  const permissionRequest = () =>
+    fetch(`${base}/bus/hook/claude/${A.id}/${hookSecret}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hook_event_name: 'PermissionRequest',
+        session_id: 'ui-check',
+        cwd: wsDir,
+        permission_mode: 'default',
+        tool_name: 'Bash',
+        tool_input: { command: 'echo switchyard-ok > ok.txt' },
+      }),
+    }).then((r) => r.json());
+  const decisionJson = (behavior) =>
+    JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior } },
+    });
+  const cardGone = () => until(async () => !(await page.isVisible('.attn-permission')), 5000, 50);
+  for (const [button, behavior] of [
+    ['Allow once', 'allow'],
+    ['Deny', 'deny'],
+  ]) {
+    const tp = Date.now();
+    const pending = permissionRequest();
+    const card = await until(() => page.isVisible('.attn-permission'), 1000, 50);
+    const cardText = card ? await page.textContent('.attn-permission') : '';
+    const ms = Date.now() - tp;
+    check(
+      !!card &&
+        ms < 1000 &&
+        cardText.includes('Mock A') &&
+        cardText.includes('Bash') &&
+        cardText.includes('echo switchyard-ok > ok.txt'),
+      `F5 PermissionRequest card shows node, tool and command in Needs you (${ms} ms)`,
+    );
+    if (behavior === 'allow') await page.screenshot({ path: join(shots, 'f5-permission.png') });
+    await page.click(`.attn-permission button:has-text("${button}")`);
+    const answer = JSON.stringify(await pending);
+    check(
+      answer === decisionJson(behavior) && !!(await cardGone()),
+      `F5 ${button} answers the hook with ${answer} and the card goes away`,
+    );
+  }
+  {
+    const pending = permissionRequest();
+    await until(() => page.isVisible('.attn-permission'), 2000, 50);
+    const answer = JSON.stringify(await pending); // nobody clicks: the 1.5 s test timeout expires
+    check(
+      answer === '{}' && !!(await cardGone()),
+      `F5 timeout with no click answers ${answer} (terminal prompt takes over) and the card goes away`,
+    );
+  }
+  // Trust prompt: a Shell node prints a copy of Claude Code's folder-trust dialog and waits for Enter.
+  const trustDialog = [
+    '╭──────────────────────────────────────────────────╮',
+    '│ Do you trust the files in this folder?           │',
+    '│                                                  │',
+    `│ ${wsDir}`,
+    '│                                                  │',
+    '│ Claude Code may read files in this folder.       │',
+    '│ Reading untrusted files may lead Claude Code to  │',
+    '│ behave in unexpected ways.                       │',
+    '│                                                  │',
+    '│ With your permission Claude Code may execute     │',
+    '│ files in this folder. Executing untrusted code   │',
+    '│ is unsafe.                                       │',
+    '│                                                  │',
+    '│ https://docs.claude.com/s/claude-code-security   │',
+    '│                                                  │',
+    '│ ❯ 1. Yes, proceed                                │',
+    '│   2. No, exit                                    │',
+    '│                                                  │',
+    '│ Enter to confirm · Esc to exit                   │',
+    '╰──────────────────────────────────────────────────╯',
+  ];
+  await api('POST', `/api/nodes/${term.id}/reply`, {
+    text: `printf '%s\\n' ${trustDialog.map((l) => `'${l}'`).join(' ')}; read -r; echo trusted-ok`,
+  });
+  const trustItem = await until(
+    () => page.isVisible('.attn-needs_input button:has-text("Accept")'),
+    8000,
+    100,
+  );
+  const trustText = trustItem ? await page.textContent('.attn-needs_input') : '';
+  check(
+    !!trustItem &&
+      trustText.includes('Shell') &&
+      trustText.includes('Accept the folder trust prompt in this node'),
+    'F5 folder-trust dialog on screen → needs_input item with an Accept button',
+  );
+  if (trustItem) await page.screenshot({ path: join(shots, 'f5-trust.png') });
+  const typedRefused = await api('POST', `/api/nodes/${term.id}/reply`, { text: 'yes' });
+  check(
+    typedRefused.status === 409,
+    `F5 free text into the node at the trust prompt is refused (HTTP ${typedRefused.status})`,
+  );
+  await page.click('.attn-needs_input button:has-text("Accept")');
+  const trustCleared = await until(
+    async () =>
+      (await termText(term.id))?.includes('trusted-ok') &&
+      !(await page.isVisible('.attn-needs_input')),
+    8000,
+  );
+  check(!!trustCleared, 'F5 Accept sends Enter: the dialog is answered and the item clears');
 
   // ---------------- Phase 5: board task claimed/completed by a mock agent
   await page.click('.side-head .icon-btn');
