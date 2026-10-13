@@ -132,9 +132,10 @@ export function runNdjson(
 
 /**
  * Every agent gets its own small helper process (the bus MCP server). Cap its heap so a few agents on a laptop
- * stay light; it only forwards small JSON calls, so 64 MB is plenty.
+ * stay light; it only forwards small JSON calls, so 64 MB is plenty and a 1 MB young generation keeps RSS low.
+ * Child processes only (bus-mcp, hook relays, mock agent); core itself runs with default flags.
  */
-export const LEAN_NODE_FLAGS = ['--max-old-space-size=64'];
+export const LEAN_NODE_FLAGS = ['--max-old-space-size=64', '--max-semi-space-size=1'];
 
 /**
  * Env every agent process gets so its bus-mcp/hook children can find their identity. Only names, paths and ids:

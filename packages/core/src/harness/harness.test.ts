@@ -40,7 +40,9 @@ describe('claude adapter', () => {
     expect(mcp.mcpServers.switchyard.env.SWITCHYARD_CAPFILE).toMatch(/\/run\/node123\.json$/);
     expect(JSON.stringify(mcp)).not.toMatch(/capability/);
     expect(mcp.mcpServers.switchyard.args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
+    // Heap cap for the helper process: old space 64 MB and a 1 MB young generation.
     expect(mcp.mcpServers.switchyard.args).toContain('--max-old-space-size=64');
+    expect(mcp.mcpServers.switchyard.args).toContain('--max-semi-space-size=1');
     const settings = JSON.parse(arg('--settings'));
     for (const ev of ['Notification', 'Stop', 'UserPromptSubmit', 'SessionStart']) {
       expect(settings.hooks[ev][0].hooks[0].command).toContain(`claude 'node123' ${ev}`);

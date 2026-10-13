@@ -15,6 +15,7 @@ import {
   busMcpServerSpec,
   coordinationBlurb,
   extractJson,
+  LEAN_NODE_FLAGS,
 } from './util.js';
 
 const HOOK_EVENTS = [
@@ -37,7 +38,7 @@ export function claudeHookSettings(nodeId: string, hookUrl?: string): string {
     const list: Array<Record<string, unknown>> = [
       {
         type: 'command',
-        command: `${shq(process.execPath)} ${shq(HOOK_RELAY_ENTRY)} claude ${shq(nodeId)} ${ev}`,
+        command: `${shq(process.execPath)} ${LEAN_NODE_FLAGS.join(' ')} ${shq(HOOK_RELAY_ENTRY)} claude ${shq(nodeId)} ${ev}`,
         timeout: 10,
       },
     ];

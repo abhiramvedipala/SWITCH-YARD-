@@ -87,7 +87,8 @@ const LEGACY_HOOKS_KEY = 'switchyard-status'; // written by earlier versions; re
 
 /** The hook group Switchyard owns in agy's hooks.json (shape from agy's hooks docs). Exported for tests. */
 export function agyHooksEntry(): Record<string, unknown> {
-  const cmd = (ev: string) => `"${process.execPath}" "${HOOK_AGY_ENTRY}" ${ev}`;
+  const cmd = (ev: string) =>
+    `"${process.execPath}" ${LEAN_NODE_FLAGS.join(' ')} "${HOOK_AGY_ENTRY}" ${ev}`;
   return {
     enabled: true,
     // Permission/question prompts can wait for the human, so this one gets a long, explicit timeout.

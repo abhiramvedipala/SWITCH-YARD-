@@ -45,7 +45,8 @@ export const mock: Harness = {
       | undefined;
     const emit = (e: NormalizedEvent) => opts.onEvent?.(e);
     emit({ kind: 'status', state: 'working' });
-    const run = await runNdjson(process.execPath, [MOCK_AGENT_ENTRY, '--turn'], {
+    const args = [...LEAN_NODE_FLAGS, MOCK_AGENT_ENTRY, '--turn'];
+    const run = await runNdjson(process.execPath, args, {
       cwd: opts.cwd,
       env: opts.nodeId ? busEnv(opts.nodeId) : {},
       signal: opts.signal,

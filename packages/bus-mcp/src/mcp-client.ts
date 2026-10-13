@@ -20,7 +20,7 @@ export interface BusMcp {
 export async function connectBusMcp(env: Record<string, string>): Promise<BusMcp> {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: ['--max-old-space-size=64', BUS_MCP_INDEX],
+    args: ['--max-old-space-size=64', '--max-semi-space-size=1', BUS_MCP_INDEX],
     env: { ...(process.env as Record<string, string>), ...env },
     stderr: 'pipe',
   });
