@@ -20,6 +20,8 @@ export interface PtySession {
   chunks: string[];
   lines: number;
   bytes: number;
+  /** Chars ever written by this process (never trimmed): lets the status monitor look at "output since X" only. */
+  totalBytes: number;
   cols: number;
   rows: number;
   lastOutputAt: number;
@@ -68,6 +70,7 @@ export class PtyManager {
       chunks: [],
       lines: 0,
       bytes: 0,
+      totalBytes: 0,
       cols,
       rows,
       lastOutputAt: Date.now(),
@@ -101,6 +104,7 @@ export class PtyManager {
     s.chunks.push(data);
     s.lines += countNewlines(data);
     s.bytes += data.length;
+    s.totalBytes += data.length;
     while ((s.lines > MAX_LINES || s.bytes > MAX_BYTES) && s.chunks.length > 1) {
       const dropped = s.chunks.shift()!;
       s.lines -= countNewlines(dropped);

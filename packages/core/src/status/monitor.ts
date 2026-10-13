@@ -22,8 +22,21 @@ export function stripAnsi(s: string): string {
   return s.replace(ANSI, '').replace(/\r/g, '');
 }
 
-export function screenTail(nodeId: string, lines = 12): string {
-  const raw = ptys.scrollback(nodeId).slice(-6000);
+/**
+ * Claude Code's folder-trust dialog ("Do you trust the files in this folder?" with "1. Yes, proceed" / "2. No, exit").
+ * Both the question and the first option are required so ordinary output cannot match. Checked on every terminal,
+ * since a human may also start `claude` by hand in a Shell node.
+ */
+export const TRUST_PROMPT =
+  /Do you trust the files in this folder\?[\s\S]{0,1500}\b1\.\s+Yes, proceed\b/;
+export const TRUST_PROMPT_TEXT = 'Accept the folder trust prompt in this node';
+/** The trust dialog is ~14 lines; the generic prompt patterns look at the last 8. */
+const TRUST_LINES = 20;
+
+/** Last `lines` non-empty screen lines; `newChars` limits the look-back to the most recent output (Infinity = all). */
+export function screenTail(nodeId: string, lines = 12, newChars = Infinity): string {
+  if (newChars <= 0) return '';
+  const raw = ptys.scrollback(nodeId).slice(-Math.min(6000, newChars));
   return stripAnsi(raw)
     .split('\n')
     .map((l) => l.trimEnd())
@@ -45,6 +58,8 @@ export interface AttentionItem {
   toolName?: string;
   source?: 'claude' | 'agy';
   options?: ('allow' | 'deny' | 'ask')[];
+  /** needs_input items only: a known dialog with a one-key answer the UI can offer as a button (Accept = Enter). */
+  prompt?: 'trust';
 }
 
 /**
@@ -107,12 +122,23 @@ export class StatusMonitor {
   noteUserInput(nodeId: string): void {
     this.lastInputAt.set(nodeId, Date.now());
     this.scannedAt.delete(nodeId); // re-read the screen: the dismissed prompt changes the answer
-    // Whatever prompt is on screen now has been answered; don't re-flag it until the screen changes.
-    if (this.store.getNode(nodeId)?.state === 'needs_input')
-      this.dismissedTail.set(nodeId, screenTail(nodeId, 8));
+    // Whatever prompt is on screen now has been answered: from here on only output written after this
+    // counts, so the same dialog (still in the raw scrollback) is not re-flagged by a later line.
+    const s = ptys.get(nodeId);
+    if (s && this.store.getNode(nodeId)?.state === 'needs_input')
+      this.answered.set(nodeId, { startedAt: s.startedAt, chars: s.totalBytes });
   }
 
-  private dismissedTail = new Map<string, string>();
+  /** Where the human last answered a prompt, per PTY process (a respawn starts over). */
+  private answered = new Map<string, { startedAt: number; chars: number }>();
+
+  /** Screen tail limited to output since the last answered prompt. */
+  private freshTail(nodeId: string, lines: number): string {
+    const s = ptys.get(nodeId);
+    const a = this.answered.get(nodeId);
+    const since = s && a && a.startedAt === s.startedAt ? s.totalBytes - a.chars : Infinity;
+    return screenTail(nodeId, lines, since);
+  }
 
   private set(nodeId: string, state: NodeState): void {
     const prev = this.store.getNode(nodeId)?.state;
@@ -125,7 +151,7 @@ export class StatusMonitor {
 
   /** lastOutputAt of each terminal when its screen was last scanned for prompts (skip unchanged screens). */
   private scannedAt = new Map<string, number>();
-  private prompting = new Map<string, boolean>();
+  private prompting = new Map<string, false | 'prompt' | 'trust'>();
 
   tick(): void {
     // Iterate live terminals only (not every node row: chat nodes carry whole transcripts in data_json).
@@ -140,14 +166,16 @@ export class StatusMonitor {
       if (this.scannedAt.get(id) !== s.lastOutputAt) {
         this.scannedAt.set(id, s.lastOutputAt);
         const h = getHarness(n.harness);
-        const tail = screenTail(id, 8);
+        const wide = this.freshTail(id, TRUST_LINES);
+        const tail = wide.split('\n').slice(-8).join('\n');
         this.prompting.set(
           id,
-          tail !== this.dismissedTail.get(id) &&
-            (h.needsInputPatterns ?? []).some((re) => re.test(tail)),
+          TRUST_PROMPT.test(wide)
+            ? 'trust'
+            : (h.needsInputPatterns ?? []).some((re) => re.test(tail)) && 'prompt',
         );
       }
-      const prompting = this.prompting.get(id) === true;
+      const prompting = !!this.prompting.get(id);
       if (prompting) {
         this.set(id, 'needs_input');
         continue;
@@ -293,17 +321,20 @@ export class StatusMonitor {
     for (const n of nodes) {
       // A permission card already says what is needed; don't also show the raw screen for the same wait.
       if (n.state === 'needs_input' && !this.permissions?.hasOpen(n.id)) {
+        const trust = this.prompting.get(n.id) === 'trust';
         items.push({
           kind: 'needs_input',
           id: `ni-${n.id}`,
           nodeId: n.id,
           nodeTitle: n.title,
           workspaceId: n.workspaceId,
-          text:
-            n.type === 'agent-terminal' || n.type === 'terminal'
+          text: trust
+            ? TRUST_PROMPT_TEXT
+            : n.type === 'agent-terminal' || n.type === 'terminal'
               ? screenTail(n.id, 10)
               : 'Waiting for input',
           createdAt: this.needsInputSince.get(n.id) ?? Date.now(),
+          ...(trust ? { prompt: 'trust' as const } : {}),
         });
       }
       if ((n.type === 'agent-terminal' || n.type === 'agent-chat') && n.state === 'idle') {
