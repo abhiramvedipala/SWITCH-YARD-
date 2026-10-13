@@ -27,6 +27,9 @@ export function NodeMenu({ node, onClose }: { node: SNode; onClose: () => void }
   };
   const isAgent = node.type === 'agent-terminal' || node.type === 'agent-chat';
   const isPty = node.type === 'terminal' || node.type === 'agent-terminal';
+  // Claude is served by its Stop hook, so typing nudges is opt-in there; other agents default on.
+  const nudgeOn =
+    node.harness === 'claude' ? node.data.autoNudge === true : node.data.autoNudge !== false;
   return (
     <div className="menu nodrag" onMouseLeave={onClose}>
       <button onClick={() => act(async () => set({ focusId: node.id }))}>Focus (F)</button>
@@ -81,12 +84,12 @@ export function NodeMenu({ node, onClose }: { node: SNode; onClose: () => void }
           onClick={() =>
             act(() =>
               api.patch(`/api/nodes/${node.id}`, {
-                data: { autoNudge: node.data.autoNudge === false },
+                data: { autoNudge: !nudgeOn },
               }),
             )
           }
         >
-          {node.data.autoNudge === false ? 'Enable' : 'Disable'} inbox nudges
+          {nudgeOn ? 'Disable' : 'Enable'} inbox nudges (types into the terminal)
         </button>
       )}
       {isAgent && (

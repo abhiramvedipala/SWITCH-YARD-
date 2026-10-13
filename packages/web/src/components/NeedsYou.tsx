@@ -69,12 +69,17 @@ function Item({ item }: { item: AttentionItem }) {
             Tell it to check its inbox
           </button>
         </div>
+      ) : item.kind === 'needs_input' ? (
+        <div className="muted small">
+          Waiting at a prompt: use the keys below. Typed replies are disabled here so they can't
+          answer it by accident.
+        </div>
       ) : (
         <form className="reply" onSubmit={submit}>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={item.kind === 'question' ? 'Your answer…' : 'Type a reply (sent + Enter)…'}
+            placeholder="Your answer…"
           />
           <MicButton onText={(t) => setText((d) => (d ? `${d} ${t}` : t))} />
           <button className="btn btn-xs" disabled={!text.trim()}>
