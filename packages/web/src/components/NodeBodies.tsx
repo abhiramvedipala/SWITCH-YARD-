@@ -4,6 +4,7 @@ import type { SNode } from '../lib/types.js';
 import { useStore } from '../store.js';
 import { LazyMd, LazyTerminal } from './Lazy.js';
 import { ChatView } from './ChatView.js';
+import { FilesBody } from './FilesView.js';
 
 function useDebouncedSave(nodeId: string, key: string) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,6 +205,8 @@ export function NodeBody({ node, primary = true }: { node: SNode; primary?: bool
       return <DocBody node={node} />;
     case 'browser':
       return <BrowserBody node={node} />;
+    case 'files':
+      return <FilesBody node={node} />;
     case 'external':
       return (
         <div className="muted small pad">

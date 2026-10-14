@@ -51,13 +51,14 @@ Neither is required: the **Mock agent** uses the same message system with no AI.
 
 ## What's on the canvas
 
-| Node                            | What it is                                                                                                                   |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Terminal                        | A real shell (node-pty). Keeps running and keeps its scrollback across page reloads.                                         |
-| Claude Code / Antigravity agent | The interactive CLI in a terminal, with Switchyard's message-system tools attached. Shows working / idle / needs-you status. |
-| Mock agent                      | A no-AI stand-in that drives the same tools. Type `help` in it.                                                              |
-| Claude / Antigravity chat       | A "driven" agent: headless turns streamed into a chat view.                                                                  |
-| Note, Doc, Browser preview      | Plain text, markdown, and an iframe for `localhost` previews.                                                                |
+| Node                            | What it is                                                                                                                                                                                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terminal                        | A real shell (node-pty). Keeps running and keeps its scrollback across page reloads.                                                                                                                                                          |
+| Claude Code / Antigravity agent | The interactive CLI in a terminal, with Switchyard's message-system tools attached. Shows working / idle / needs-you status.                                                                                                                  |
+| Mock agent                      | A no-AI stand-in that drives the same tools. Type `help` in it.                                                                                                                                                                               |
+| Claude / Antigravity chat       | A "driven" agent: headless turns streamed into a chat view.                                                                                                                                                                                   |
+| Note, Doc, Browser preview      | Plain text, markdown, and an iframe for `localhost` previews.                                                                                                                                                                                 |
+| Files                           | A tree of the workspace folder next to a plain editor (line numbers, ⌘S, markdown preview, images). Files outside the workspace, symlink escapes and Switchyard's own folders are refused; phones get read-only; Reveal in Finder on the Mac. |
 
 **Connections define who can talk to whom.** An agent only sees peers it's
 connected to by an edge.

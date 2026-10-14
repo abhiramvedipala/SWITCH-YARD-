@@ -735,6 +735,133 @@ label.check {
   background: #fff;
 }
 
+/* files block: tree on the left, viewer/editor on the right */
+.files {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.files-tree {
+  width: 220px;
+  min-width: 140px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.files-tree-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.files-tree-head .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.files-tree-head label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.files-tree-body {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tree-row:hover {
+  background: var(--panel-2);
+}
+.tree-row.selected {
+  background: var(--bg-2);
+  color: var(--accent);
+}
+.tree-row:focus-visible {
+  outline-offset: -2px;
+}
+.tree-glyph {
+  width: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.files-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.files-bar {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+}
+.files-bar .path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.files-dirty {
+  color: var(--accent);
+}
+.files-editor {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.files-gutter {
+  padding: 8px 6px;
+  text-align: right;
+  color: var(--muted);
+  background: var(--bg-2);
+  overflow: hidden;
+  user-select: none;
+  white-space: pre;
+  font: inherit;
+}
+.files-text {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  resize: none;
+  padding: 8px 10px;
+  font: inherit;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+}
+.files-view {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+.files-view img {
+  max-width: 100%;
+}
+
 /* chat */
 .chat {
   flex: 1;

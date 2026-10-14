@@ -546,6 +546,51 @@ try {
     'P6 Ask Switchyard streams a reply (mock)',
   );
 
+  // ---------------- Files block: workspace tree, editor with ⌘S, reload when the file changes on disk
+  const checkFile = join(wsDir, 'files-check.txt');
+  writeFileSync(checkFile, 'alpha\nbeta\n');
+  await page.click('.views button:has-text("Canvas")');
+  await page.click('button:has-text("+ Add")');
+  await page.click('.add-menu button:has-text("Files")');
+  const filesNode = await until(async () =>
+    (await api('GET', `/api/workspaces/${ws.id}/graph`)).data.nodes.find((n) => n.type === 'files'),
+  );
+  const fsel = `.react-flow__node[data-id="${filesNode?.id}"]`;
+  const fileRow = `${fsel} .tree-row:has-text("files-check.txt")`;
+  await sleep(500); // the canvas pans to the new node
+  check(
+    !!filesNode &&
+      filesNode.w === 720 &&
+      filesNode.h === 480 &&
+      !!(await until(() => page.isVisible(fileRow), 8000)),
+    'FB + Add → Files adds a 720×480 node whose tree lists the file the check created',
+  );
+  await page.click(fileRow);
+  await until(async () => (await page.inputValue(`${fsel} .files-text`)) === 'alpha\nbeta\n');
+  await page.fill(`${fsel} .files-text`, 'alpha\nbeta\ngamma\n');
+  const dirtyShown = await until(() => page.isVisible(`${fsel} .files-dirty`), 2000, 50);
+  await page.keyboard.press('Control+s');
+  const readBack = () =>
+    api('GET', `/api/fs/read?nodeId=${filesNode?.id}&path=files-check.txt`).then((r) => r.data);
+  const saved = await until(
+    async () =>
+      !(await page.isVisible(`${fsel} .files-dirty`)) &&
+      (await readBack()).text === 'alpha\nbeta\ngamma\n',
+    8000,
+  );
+  check(
+    !!dirtyShown && !!saved && readFileSync(checkFile, 'utf8') === 'alpha\nbeta\ngamma\n',
+    'FB edit shows the unsaved dot; ⌘S writes it (GET /api/fs/read and the disk agree)',
+  );
+  await sleep(100);
+  writeFileSync(checkFile, 'from disk\n');
+  const reloaded = await until(
+    async () => (await page.inputValue(`${fsel} .files-text`)) === 'from disk\n',
+    8000,
+  );
+  check(!!reloaded, 'FB a change on disk shows in the editor within a few seconds (mtime poll)');
+  await page.screenshot({ path: join(shots, 'files-block.png') });
+
   // ---------------- Rooms: two mock participants, @mention routing, everyone answering, Stop
   await page.click('.views button:has-text("Rooms")');
   await page.click('.room-list-head button:has-text("New room")');
