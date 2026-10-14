@@ -138,7 +138,7 @@ Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversa
 
 - [ ] **Rooms core** — `rooms`, `room_participants`, `room_messages` tables; modes `all` / `mention` / `round`; per-participant CLI sessions that see only unseen lines; @mention chain cap; Stop; seed from an imported Claude.ai / ChatGPT export; bus tools `list_rooms` / `read_room` / `post_to_room`; Rooms view in the web UI; mock-driven tests + ui-checks in Chromium and WebKit.
 - [x] **`codex` harness** (2026-10-14) — ChatGPT through OpenAI's Codex CLI: `codex exec --json` driven turns (`--sandbox workspace-write`, `approval_policy=never`, bypass only with YOLO), resume by thread id, bus MCP attached per process via `--config mcp_servers.switchyard.*` (nothing written to `~/.codex`), detection via `codex --version` + `codex login status` exit code. Listed in + Add, Settings and every harness picker. Fake-binary tests only (217 vitest, 43 ui-checks). **Codex is not installed yet** → OWNER CHECK CX below.
-- [ ] **API-key harnesses** — `api-anthropic`, `api-openai`, `api-gemini`: chat-only, keys as 0600 files under `~/.switchyard/keys/`, official hosts only, local fake servers in tests. Opt-in exception to the no-outbound rule.
+- [x] **API-key harnesses** (2026-10-14) — `api-anthropic` (Messages API), `api-openai` (Responses API, `store:false`), `api-gemini` (`streamGenerateContent` SSE): chat-only, no tools; keys as 0600 files in `~/.switchyard/keys/` with local-only routes that return only `{configured, last4}`; official hosts hard-coded, `redirect:'error'`; history in `api_history` (100 turns / ~400k chars per session, 200 sessions); Settings → API keys card, + Add entries, per-node model. Defaults `claude-opus-5-5`, `gpt-6-astra`, `gemini-3.8-flash` (checked against the docs 2026-10-14). 22 vitest against fake 127.0.0.1 servers, 3 ui-checks. **Not tried with a real key** → OWNER CHECK AK below.
 - [x] **Claude Desktop connector** (2026-10-14) — config writer (present / absent / stale / invalid, `.bak` once, invalid JSON refused), fixed `claude-desktop` external canvas node with a 0600 run file rotated on Connect and core boot and revoked on Remove, bus-mcp `whoami`, Settings card. 208 vitest, e2e (14 tools), 43 ui-checks. **Not yet tried with a real Claude Desktop** (owner step below).
 
 Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
@@ -155,6 +155,12 @@ Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, ad
 | A4 ask_user                    | pending |       |
 | A5 real run                    | pending |       |
 | A6 resume                      | pending |       |
+
+### OWNER CHECK AK — API-key chat (optional; costs tokens on your account)
+
+1. Settings → **API keys** → paste one key (Claude, OpenAI or Gemini) → Save. The field clears; the badge shows `configured · …last4`.
+2. - Add → the matching **… API chat**, send `reply with the single word pong`.
+3. Paste back the reply or the error text (401/429 wording is what I want to confirm). Remove the key afterwards if you like; it only ever lives in `~/.switchyard/keys/`.
 
 ### OWNER CHECK CX — install Codex (ChatGPT) and sign in
 

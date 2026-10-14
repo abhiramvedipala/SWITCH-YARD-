@@ -109,6 +109,12 @@ steps on agy talk to one long-lived stream-json process instead of one
 `agy -p` per turn. It writes nothing outside Switchyard's own database; untick
 to undo.
 
+**API-key chats (opt-in):** Settings → **API keys**, paste a Claude, OpenAI or
+Gemini key (saved only in `~/.switchyard/keys/`, `0600`, never shown again).
+Then **+ Add → Claude / OpenAI / Gemini API chat**. Chat only (no tools, no
+files), billed per token to your account, and the only part of Switchyard that
+goes online.
+
 **Codex (ChatGPT):** install with `npm install -g @openai/codex` (or
 `brew install --cask codex`), run `codex login` and choose _Sign in with
 ChatGPT_. Then **+ Add → Codex agent** (terminal) or **Codex chat** (driven).
