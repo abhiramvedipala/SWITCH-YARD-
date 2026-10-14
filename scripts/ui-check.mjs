@@ -202,6 +202,22 @@ try {
 
   // ---------------- Phase 2: 3 nodes + 2 edges persist
   await page.click('button:has-text("+ Add")');
+  // Playwright scrolls a clipped element into view before clicking, so check what a person sees:
+  // every menu row must be the topmost element at its own centre, with nothing scrolled.
+  const menuVisible = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.add-menu button')];
+    const bar = document.querySelector('.topbar');
+    return (
+      rows.length > 0 &&
+      (!bar || bar.scrollTop === 0) &&
+      rows.every((b) => {
+        const r = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return r.height > 0 && !!hit && b.contains(hit);
+      })
+    );
+  });
+  check(menuVisible, 'P2 the + Add menu is fully visible (not clipped by the top bar)');
   await page.click('.add-menu button:has-text("Note")');
   await until(async () => (await page.$$('.react-flow__node')).length === 2);
   await page.click('button:has-text("+ Add")');

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { api } from '../lib/api.js';
 import type { HarnessId, NodeType } from '../lib/types.js';
 import { harnessLabel, useStore } from '../store.js';
@@ -75,6 +75,9 @@ export const ADD_ITEMS: { label: string; hint: string; spec: AddSpec }[] = [
 
 export function AddNodeMenu({ inline }: { inline?: boolean }) {
   const [open, setOpen] = useState(!!inline);
+  // The top bar scrolls horizontally, so it clips anything absolutely positioned below it.
+  // Pin the dropdown to the button's on-screen position instead.
+  const [at, setAt] = useState<CSSProperties>();
   const [yolo, setYolo] = useState(false);
   const detections = useStore((s) => s.detections);
   const set = useStore((s) => s.set);
@@ -84,6 +87,7 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
   const list = (
     <div
       className={inline ? 'add-grid' : 'menu add-menu'}
+      style={inline ? undefined : at}
       onMouseLeave={() => !inline && setOpen(false)}
     >
       {ADD_ITEMS.map((it) => (
@@ -129,7 +133,14 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
   if (inline) return list;
   return (
     <span className="menu-anchor">
-      <button className="btn" onClick={() => setOpen(!open)}>
+      <button
+        className="btn"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt({ position: 'fixed', top: r.bottom + 4, left: r.left });
+          setOpen(!open);
+        }}
+      >
         + Add
       </button>
       {open && list}
