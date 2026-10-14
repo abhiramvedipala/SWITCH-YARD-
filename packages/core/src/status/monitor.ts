@@ -172,7 +172,9 @@ export class StatusMonitor {
           id,
           TRUST_PROMPT.test(wide)
             ? 'trust'
-            : (h.needsInputPatterns ?? []).some((re) => re.test(tail)) && 'prompt',
+            : (h.needsInputPatternsFor?.(n) ?? h.needsInputPatterns ?? []).some((re) =>
+                re.test(tail),
+              ) && 'prompt',
         );
       }
       const prompting = !!this.prompting.get(id);

@@ -53,10 +53,10 @@ export const IMPORT_BUDGET = 20_000;
 const LINES_BUDGET = 60_000;
 export const HUMAN_NAME = 'Human';
 
-/** Every harness that can run a headless turn can sit in a room; nothing here names a specific one. */
+/** Every harness that can run a headless turn without per-node data can sit in a room; nothing here names one. */
 export function drivableHarnesses(): string[] {
   return Object.values(harnesses)
-    .filter((h) => !!h.runTurn)
+    .filter((h) => !!h.runTurn && !h.perNodeConfig)
     .map((h) => h.id);
 }
 

@@ -75,8 +75,14 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
       );
       core.detections = Object.fromEntries(entries);
       runs.available = entries
-        // Runs need agents that can edit files; chat-only API harnesses stay out.
-        .filter(([id, d]) => d.installed && harnesses[id].runTurn && harnesses[id].isAgent)
+        // Runs need agents that can edit files; chat-only API harnesses and per-node-configured ones stay out.
+        .filter(
+          ([id, d]) =>
+            d.installed &&
+            harnesses[id].runTurn &&
+            harnesses[id].isAgent &&
+            !harnesses[id].perNodeConfig,
+        )
         .map(([id]) => id);
       return core.detections;
     },

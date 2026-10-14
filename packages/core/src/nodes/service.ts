@@ -6,6 +6,7 @@ import type { Capabilities } from '../auth/capability.js';
 import { ptys } from '../pty/manager.js';
 import { getHarness, isHarnessId } from '../harness/index.js';
 import { closeAgySessions } from '../harness/agy.js';
+import { customSpec, customTitle } from '../harness/custom.js';
 import { hub } from '../events.js';
 import { assertSafeCwd } from '../paths.js';
 
@@ -73,9 +74,16 @@ export class NodeService {
       // Chat-only harnesses (API-key models) can back a chat node, never a terminal.
       const chatOnly = type === 'agent-chat' && !!h?.runTurn;
       if (!h || (!h.isAgent && !chatOnly)) {
-        throw new Error('agent nodes need a harness: claude, agy, codex or mock');
+        throw new Error('agent nodes need a harness: claude, agy, codex, custom or mock');
       }
       if (type === 'agent-chat' && !h.runTurn) throw new Error('harness cannot be driven');
+      if (h.id === 'custom') {
+        const { preset } = customSpec(input.data); // throws when there is no command to run
+        if (type === 'agent-chat' && !preset.turn)
+          throw new Error(
+            `${preset.label} has no documented non-interactive mode; add it as a terminal agent instead`,
+          );
+      }
       harness = h.id;
     }
     const cwd =
@@ -97,7 +105,7 @@ export class NodeService {
       workspaceId,
       type,
       harness,
-      title: input.title?.trim() || defaultTitle(type, harness, count),
+      title: input.title?.trim() || defaultTitle(type, harness, count, input.data),
       cwd,
       x: input.x ?? slot!.x,
       y: input.y ?? slot!.y,
@@ -204,14 +212,19 @@ export function freeSlot(nodes: NodeRec[], w: number, h: number): { x: number; y
   return { x: 60 + nodes.length * 30, y: 60 + nodes.length * 30 };
 }
 
-function defaultTitle(type: NodeType, harness: string | null, count: number): string {
+function defaultTitle(
+  type: NodeType,
+  harness: string | null,
+  count: number,
+  data?: Record<string, unknown>,
+): string {
   const n = count + 1;
   switch (type) {
     case 'terminal':
       return `Terminal ${n}`;
     case 'agent-terminal':
     case 'agent-chat':
-      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'codex' ? 'Codex' : harness === 'mock' ? 'Mock' : getHarness(harness).label} ${n}`;
+      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'codex' ? 'Codex' : harness === 'mock' ? 'Mock' : harness === 'custom' ? customTitle(data) : getHarness(harness).label} ${n}`;
     case 'note':
       return 'Note';
     case 'doc':
