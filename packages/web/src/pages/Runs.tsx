@@ -5,7 +5,7 @@ import type { HarnessId, Run, RunStep } from '../lib/types.js';
 import { harnessLabel, useStore } from '../store.js';
 import { timeAgo, usageLabel } from '../components/bits.js';
 
-const DRIVABLE: HarnessId[] = ['claude', 'agy', 'mock'];
+const DRIVABLE: HarnessId[] = ['claude', 'agy', 'codex', 'mock'];
 
 function HarnessSelect({
   value,

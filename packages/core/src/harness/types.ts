@@ -1,7 +1,7 @@
 import type { NodeRec, Workspace } from '../store.js';
 
 export type HarnessId =
-  'claude' | 'agy' | 'shell' | 'mock' | 'api-anthropic' | 'api-openai' | 'api-gemini';
+  'claude' | 'agy' | 'codex' | 'shell' | 'mock' | 'api-anthropic' | 'api-openai' | 'api-gemini';
 
 export interface Detection {
   installed: boolean;

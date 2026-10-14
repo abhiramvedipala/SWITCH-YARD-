@@ -373,7 +373,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
           h: z.number().min(80).max(4000).optional(),
           yolo: z.boolean().optional(),
           data: z.record(z.string(), z.unknown()).optional(),
-          harness: z.enum(['claude', 'agy', 'mock']).optional(),
+          harness: z.enum(['claude', 'agy', 'codex', 'mock']).optional(),
         })
         .parse(req.body);
       const cur = store.getNode(p<{ id: string }>(req).id);
@@ -704,7 +704,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     '/api/workspaces/:id/project-chat',
     h((req) => {
       const b = z
-        .object({ harness: z.enum(['claude', 'agy', 'mock']).optional() })
+        .object({ harness: z.enum(['claude', 'agy', 'codex', 'mock']).optional() })
         .parse(req.body ?? {});
       const n = chat.projectChatNode(p<{ id: string }>(req).id, b.harness);
       return { ...n, busy: chat.isBusy(n.id) };
@@ -891,7 +891,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     h(async (req) => {
       const b = z
         .object({
-          harness: z.enum(['claude', 'agy', 'mock']),
+          harness: z.enum(['claude', 'agy', 'codex', 'mock']),
           branch: z.string().regex(/^[A-Za-z0-9._/-]{1,80}$/),
         })
         .parse(req.body);

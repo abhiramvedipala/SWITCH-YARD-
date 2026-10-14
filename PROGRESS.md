@@ -137,7 +137,7 @@ npm start                     # note the token it prints
 Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversation, work at the same time and take instructions. Decisions are in DECISIONS.md (2026-10-14). Four parallel streams:
 
 - [ ] **Rooms core** — `rooms`, `room_participants`, `room_messages` tables; modes `all` / `mention` / `round`; per-participant CLI sessions that see only unseen lines; @mention chain cap; Stop; seed from an imported Claude.ai / ChatGPT export; bus tools `list_rooms` / `read_room` / `post_to_room`; Rooms view in the web UI; mock-driven tests + ui-checks in Chromium and WebKit.
-- [ ] **`codex` harness** — ChatGPT through OpenAI's Codex CLI on the owner's subscription (`codex exec` JSON events, resume, sandbox/approval flags, bypass only with YOLO); fake-binary tests. Codex is not installed yet → owner step.
+- [x] **`codex` harness** (2026-10-14) — ChatGPT through OpenAI's Codex CLI: `codex exec --json` driven turns (`--sandbox workspace-write`, `approval_policy=never`, bypass only with YOLO), resume by thread id, bus MCP attached per process via `--config mcp_servers.switchyard.*` (nothing written to `~/.codex`), detection via `codex --version` + `codex login status` exit code. Listed in + Add, Settings and every harness picker. Fake-binary tests only (217 vitest, 43 ui-checks). **Codex is not installed yet** → OWNER CHECK CX below.
 - [ ] **API-key harnesses** — `api-anthropic`, `api-openai`, `api-gemini`: chat-only, keys as 0600 files under `~/.switchyard/keys/`, official hosts only, local fake servers in tests. Opt-in exception to the no-outbound rule.
 - [x] **Claude Desktop connector** (2026-10-14) — config writer (present / absent / stale / invalid, `.bak` once, invalid JSON refused), fixed `claude-desktop` external canvas node with a 0600 run file rotated on Connect and core boot and revoked on Remove, bus-mcp `whoami`, Settings card. 208 vitest, e2e (14 tools), 43 ui-checks. **Not yet tried with a real Claude Desktop** (owner step below).
 
@@ -155,6 +155,16 @@ Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, ad
 | A4 ask_user                    | pending |       |
 | A5 real run                    | pending |       |
 | A6 resume                      | pending |       |
+
+### OWNER CHECK CX — install Codex (ChatGPT) and sign in
+
+```bash
+npm install -g @openai/codex      # or: brew install --cask codex
+codex login                        # browser: choose "Sign in with ChatGPT"
+codex login status                 # should print the ChatGPT login and exit 0
+```
+
+Then Settings → **Re-check**: "Codex (ChatGPT)" shows installed. First real use: + Add → **Codex chat**, send `reply with the single word pong`. Paste back the reply and anything odd (an approval prompt, a `--config` error, a git-repo error).
 
 ### OWNER CHECK CD — connect a Claude Desktop chat
 

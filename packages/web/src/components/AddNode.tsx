@@ -50,6 +50,11 @@ export const ADD_ITEMS: { label: string; hint: string; spec: AddSpec }[] = [
     spec: { type: 'agent-terminal', harness: 'agy' },
   },
   {
+    label: 'Codex agent',
+    hint: 'ChatGPT via Codex CLI, with bus tools',
+    spec: { type: 'agent-terminal', harness: 'codex' },
+  },
+  {
     label: 'Mock agent',
     hint: 'no AI — for trying the bus',
     spec: { type: 'agent-terminal', harness: 'mock' },
@@ -63,6 +68,11 @@ export const ADD_ITEMS: { label: string; hint: string; spec: AddSpec }[] = [
     label: 'Antigravity chat',
     hint: 'driven, headless turns',
     spec: { type: 'agent-chat', harness: 'agy' },
+  },
+  {
+    label: 'Codex chat',
+    hint: 'driven, headless turns',
+    spec: { type: 'agent-chat', harness: 'codex' },
   },
   ...(['api-anthropic', 'api-openai', 'api-gemini'] as const).map((h) => ({
     label: `${harnessLabel(h)} chat`,
@@ -110,7 +120,7 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
             noKey(it.spec.harness)
               ? `Add your key in Settings → API keys to use ${harnessLabel(it.spec.harness)}`
               : missing(it.spec.harness)
-                ? `${harnessLabel(it.spec.harness)} is not installed — see Settings`
+                ? `${harnessLabel(it.spec.harness)} is not installed — ${detections[it.spec.harness!]?.installHint ?? 'see Settings'}`
                 : it.hint
           }
         >

@@ -361,8 +361,8 @@ export class RunEngine {
 
   private async plan(runId: string, input: CreateRunInput): Promise<void> {
     const run = this.get(runId)!;
-    const planner = this.pickHarness(input.planner, ['claude', 'agy', 'mock']);
-    const builder = this.pickHarness(input.builder, ['claude', 'agy', 'mock']);
+    const planner = this.pickHarness(input.planner, ['claude', 'agy', 'codex', 'mock']);
+    const builder = this.pickHarness(input.builder, ['claude', 'agy', 'codex', 'mock']);
     const reviewer = this.pickHarness(
       input.reviewer,
       this.available.filter((h) => h !== builder).concat([builder]),

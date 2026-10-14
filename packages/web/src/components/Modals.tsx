@@ -239,7 +239,7 @@ export function SettingsModal() {
     <Modal title="Settings" onClose={() => set({ modal: 'none' })} wide>
       <h3>Agents on this computer</h3>
       <div className="harness-list">
-        {(['claude', 'agy', 'mock', 'shell'] as HarnessId[]).map((h) => {
+        {(['claude', 'agy', 'codex', 'mock', 'shell'] as HarnessId[]).map((h) => {
           const d = detections[h];
           return (
             <div key={h} className="harness">
@@ -435,7 +435,7 @@ export function SettingsModal() {
                 value={settings.projectChatHarness}
                 onChange={(e) => save({ projectChatHarness: e.target.value as HarnessId })}
               >
-                {(['agy', 'claude', 'mock'] as HarnessId[]).map((h) => (
+                {(['agy', 'claude', 'codex', 'mock'] as HarnessId[]).map((h) => (
                   <option key={h} value={h}>
                     {harnessLabel(h)}
                   </option>
@@ -448,7 +448,7 @@ export function SettingsModal() {
                 value={settings.defaultBuilder}
                 onChange={(e) => save({ defaultBuilder: e.target.value as HarnessId })}
               >
-                {(['claude', 'agy', 'mock'] as HarnessId[]).map((h) => (
+                {(['claude', 'agy', 'codex', 'mock'] as HarnessId[]).map((h) => (
                   <option key={h} value={h}>
                     {harnessLabel(h)}
                   </option>
@@ -461,7 +461,7 @@ export function SettingsModal() {
                 value={settings.defaultReviewer}
                 onChange={(e) => save({ defaultReviewer: e.target.value as HarnessId })}
               >
-                {(['agy', 'claude', 'mock'] as HarnessId[]).map((h) => (
+                {(['agy', 'claude', 'codex', 'mock'] as HarnessId[]).map((h) => (
                   <option key={h} value={h}>
                     {harnessLabel(h)}
                   </option>
@@ -619,6 +619,7 @@ export function WorktreeModal() {
         <select value={harness} onChange={(e) => setHarness(e.target.value as HarnessId)}>
           <option value="claude">Claude Code</option>
           <option value="agy">Antigravity</option>
+          <option value="codex">Codex (ChatGPT)</option>
           <option value="mock">Mock</option>
         </select>
         <button className="btn" onClick={go}>

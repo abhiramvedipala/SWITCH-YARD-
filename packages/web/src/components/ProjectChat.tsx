@@ -32,7 +32,7 @@ export function ProjectChat() {
           value={node.harness ?? 'agy'}
           onChange={(e) => switchTo(e.target.value as HarnessId)}
         >
-          {(['agy', 'claude', 'mock'] as HarnessId[]).map((h) => (
+          {(['agy', 'claude', 'codex', 'mock'] as HarnessId[]).map((h) => (
             <option key={h} value={h}>
               {harnessLabel(h)}
               {h !== 'mock' && !available.includes(h) ? ' (not installed)' : ''}

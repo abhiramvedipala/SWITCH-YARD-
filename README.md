@@ -109,6 +109,11 @@ steps on agy talk to one long-lived stream-json process instead of one
 `agy -p` per turn. It writes nothing outside Switchyard's own database; untick
 to undo.
 
+**Codex (ChatGPT):** install with `npm install -g @openai/codex` (or
+`brew install --cask codex`), run `codex login` and choose _Sign in with
+ChatGPT_. Then **+ Add → Codex agent** (terminal) or **Codex chat** (driven).
+Bus tools are attached per process; Switchyard never writes `~/.codex`.
+
 **Claude Desktop (opt-in):** Settings → Claude Desktop → pick a workspace →
 **Connect**. Switchyard adds only a `switchyard` entry to
 `~/Library/Application Support/Claude/claude_desktop_config.json` (`.bak`

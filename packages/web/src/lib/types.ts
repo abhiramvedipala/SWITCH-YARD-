@@ -4,6 +4,7 @@ export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'startin
 export type HarnessId =
   | 'claude'
   | 'agy'
+  | 'codex'
   | 'shell'
   | 'mock'
   | 'claude-desktop'

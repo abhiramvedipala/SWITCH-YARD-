@@ -73,7 +73,7 @@ export class NodeService {
       // Chat-only harnesses (API-key models) can back a chat node, never a terminal.
       const chatOnly = type === 'agent-chat' && !!h?.runTurn;
       if (!h || (!h.isAgent && !chatOnly)) {
-        throw new Error('agent nodes need a harness: claude, agy or mock');
+        throw new Error('agent nodes need a harness: claude, agy, codex or mock');
       }
       if (type === 'agent-chat' && !h.runTurn) throw new Error('harness cannot be driven');
       harness = h.id;
@@ -211,7 +211,7 @@ function defaultTitle(type: NodeType, harness: string | null, count: number): st
       return `Terminal ${n}`;
     case 'agent-terminal':
     case 'agent-chat':
-      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'mock' ? 'Mock' : getHarness(harness).label} ${n}`;
+      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'codex' ? 'Codex' : harness === 'mock' ? 'Mock' : getHarness(harness).label} ${n}`;
     case 'note':
       return 'Note';
     case 'doc':
