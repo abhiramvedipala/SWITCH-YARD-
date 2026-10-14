@@ -101,6 +101,11 @@ beforeAll(async () => {
     vi.spyOn(console, m).mockImplementation((...a: unknown[]) => void printed.push(a.join(' ')));
   const { buildServer } = await import('../server.js');
   api = await import('./api.js');
+  // GET /api/harnesses re-probes every harness; never let that spawn a real CLI here.
+  const { harnesses } = await import('./index.js');
+  for (const [id, h] of Object.entries(harnesses))
+    if (!id.startsWith('api-'))
+      vi.spyOn(h, 'detect').mockResolvedValue({ installed: id === 'mock' });
   const whois = async () => 'owner@x';
   built = await buildServer({ port: PORT, dbPath: ':memory:', quiet: true, whois });
   local.authorization = `Bearer ${built.token}`;
@@ -127,7 +132,7 @@ describe('API keys (Settings)', () => {
     expect(statSync(api.KEYS_DIR).mode & 0o777).toBe(0o700);
     const all = (await call('GET', '/api/keys')).json();
     expect(all.openai).toEqual({ configured: true, last4: '0002' });
-    const h = (await call('GET', '/api/harnesses')).json();
+    const h = (await call('GET', '/api/harnesses?refresh=1')).json();
     expect(h.detections['api-gemini'].installed).toBe(true);
     expect(h.detections['api-gemini'].notes[0]).toMatch(/billed per token/);
     expect(h.available).not.toContain('api-gemini'); // runs need file-editing agents

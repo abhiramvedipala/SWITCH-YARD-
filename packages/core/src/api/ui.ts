@@ -154,6 +154,10 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     h(async (req) => {
       if ((req.query as { refresh?: string }).refresh || Object.keys(core.detections).length === 0)
         await core.refreshDetections();
+      // API harnesses only read a key file: always fresh, so a slow CLI re-probe that started before a key was
+      // saved can't report it missing.
+      for (const pr of PROVIDERS)
+        core.detections[`api-${pr}`] = await harnesses[`api-${pr}`].detect();
       return {
         detections: core.detections,
         available: runs.available,
@@ -205,7 +209,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
   // one (status is configured + last 4). Computer only, like remoteReadOnly: a phone session can't read or set them.
   const keyRoute =
     (fn: (provider: (typeof PROVIDERS)[number], req: FastifyRequest) => void) =>
-    async (req: FastifyRequest) => {
+    (req: FastifyRequest) => {
       if (deps.isRemote(req))
         throw new BusError(
           'local_only',
@@ -214,8 +218,6 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
         );
       const provider = z.enum(PROVIDERS).parse(p<{ provider: string }>(req).provider);
       fn(provider, req);
-      // Only this harness's detection changes; no need to re-probe the CLIs.
-      core.detections[`api-${provider}`] = await harnesses[`api-${provider}`].detect();
       return keyStatus(provider);
     };
   app.get(
