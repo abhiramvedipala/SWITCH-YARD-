@@ -2,6 +2,7 @@ import { recordUsage } from '../usage/index.js';
 import type { Store, NodeRec } from '../store.js';
 import type { Bus } from '../bus/service.js';
 import { getHarness } from '../harness/index.js';
+import type { TurnOptions } from '../harness/types.js';
 import { coordinationBlurb } from '../harness/util.js';
 import { closeAgySessions } from '../harness/agy.js';
 import { dropApiHistory } from '../harness/api.js';
@@ -160,6 +161,7 @@ export class ChatService {
         nodeId: isProject ? undefined : node.id,
         sessionId: node.sessionRef,
         model: typeof node.data.model === 'string' ? node.data.model : undefined,
+        custom: node.data.custom as TurnOptions['custom'],
         yolo: node.yolo,
         allowedTools: getSetting(this.store.db, 'allowedTools', DEFAULT_ALLOWED_TOOLS),
         appendSystemPrompt: system,

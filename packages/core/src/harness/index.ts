@@ -4,6 +4,7 @@ import { agy } from './agy.js';
 import { codex } from './codex.js';
 import { shell } from './shell.js';
 import { mock } from './mock.js';
+import { custom } from './custom.js';
 import { apiAnthropic, apiOpenai, apiGemini } from './api.js';
 
 export const harnesses: Record<HarnessId, Harness> = {
@@ -12,6 +13,7 @@ export const harnesses: Record<HarnessId, Harness> = {
   codex,
   shell,
   mock,
+  custom,
   'api-anthropic': apiAnthropic,
   'api-openai': apiOpenai,
   'api-gemini': apiGemini,

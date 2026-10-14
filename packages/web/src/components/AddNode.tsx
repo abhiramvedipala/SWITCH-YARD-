@@ -144,6 +144,15 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
         <span>Agent in a git worktree…</span>
         <span className="muted small">isolated branch</span>
       </button>
+      <button
+        onClick={() => {
+          if (!inline) setOpen(false);
+          set({ modal: 'custom' });
+        }}
+      >
+        <span>Other CLI agent…</span>
+        <span className="muted small">Aider, Goose, OpenCode, Copilot, Cursor or any command</span>
+      </button>
       <label
         className="yolo-toggle"
         title="Agents you add next run with permission checks bypassed"

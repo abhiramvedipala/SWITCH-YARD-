@@ -25,7 +25,7 @@ export function which(bin: string): string | null {
 export function runCapture(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  opts: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal } = {},
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     execFile(
@@ -36,6 +36,7 @@ export function runCapture(
         timeout: opts.timeoutMs ?? 10_000,
         env: opts.env ?? process.env,
         maxBuffer: 16 * 1024 * 1024,
+        signal: opts.signal,
       },
       (err, stdout, stderr) => {
         const raw: unknown = err ? (err as { code?: unknown }).code : 0;
