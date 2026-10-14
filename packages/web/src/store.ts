@@ -193,5 +193,7 @@ export function harnessLabel(h: string | null | undefined): string {
         ? 'Mock'
         : h === 'shell'
           ? 'Shell'
-          : (h ?? '');
+          : h === 'claude-desktop'
+            ? 'Claude Desktop'
+            : (h ?? '');
 }

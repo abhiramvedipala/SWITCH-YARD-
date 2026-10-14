@@ -22,7 +22,11 @@ const check = (cond: boolean, msg: string) => {
 
 console.log('== bus (Phase 3 DoD) ==');
 const r = await runBusScenario((s) => console.log(`  ${s}`));
-check(r.tools.length === 16, `bus-mcp exposes 16 tools (${r.tools.length})`);
+check(
+  r.tools.length === 17 &&
+    ['whoami', 'list_rooms', 'read_room', 'post_to_room'].every((t) => r.tools.includes(t)),
+  `bus-mcp exposes 17 tools incl. whoami and the room tools (${r.tools.length})`,
+);
 check(
   r.reply.status === 'replied' && r.reply.body === 'pong',
   'A received B\'s "pong" via wait_for_reply',

@@ -50,6 +50,14 @@ writeFileSync(
   { mode: 0o755 },
 );
 
+// Claude Desktop's config, faked: Connect/Remove edit this temp file, never the real one.
+const desktopCfg = join(
+  mkdtempSync(join(tmpdir(), 'sy-ui-desktop-')),
+  'claude_desktop_config.json',
+);
+writeFileSync(desktopCfg, JSON.stringify({ keep: 'me', mcpServers: { other: { command: 'x' } } }));
+const readDesktopCfg = () => JSON.parse(readFileSync(desktopCfg, 'utf8'));
+
 const port = Number(process.env.SWITCHYARD_UI_CHECK_PORT ?? 4799);
 const base = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js')], {
@@ -58,6 +66,7 @@ const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js
     SWITCHYARD_HOME: home,
     SWITCHYARD_PORT: String(port),
     SWITCHYARD_CLAUDE_PROJECTS: claudeProjects,
+    SWITCHYARD_CLAUDE_DESKTOP_CONFIG: desktopCfg,
     SWITCHYARD_SCRATCH_ROOT: join(root, 'scratch'),
     // Test-only knob (default 590 s): the F5 timeout check waits for a permission request to expire.
     SWITCHYARD_PERMISSION_TIMEOUT_MS: '1500',
@@ -533,6 +542,36 @@ try {
     'P7 import dialog lists Claude Code sessions from the projects folder',
   );
   await page.screenshot({ path: join(shots, 'p7-import.png') });
+  await page.keyboard.press('Escape');
+
+  // ---------------- Claude Desktop connector (Settings card, temp config file)
+  await page.click('button[title="Settings"]');
+  await page.waitForSelector('.desktop-card');
+  await page.selectOption('.desktop-card select', ws.id);
+  await page.click('.desktop-card button:has-text("Connect")');
+  const joined = await until(() => page.isVisible('.desktop-card .badge:has-text("joined")'));
+  const cfgAfter = readDesktopCfg();
+  const desktopNode = (await api('GET', `/api/workspaces/${ws.id}/graph`)).data.nodes.find(
+    (n) => n.id === 'claude-desktop',
+  );
+  check(
+    !!joined &&
+      cfgAfter.keep === 'me' &&
+      cfgAfter.mcpServers.other?.command === 'x' &&
+      cfgAfter.mcpServers.switchyard?.env?.SWITCHYARD_CAPFILE ===
+        join(home, 'run', 'claude-desktop.json') &&
+      desktopNode?.type === 'external',
+    'CD Connect adds only the switchyard entry and a Claude Desktop node on the canvas',
+  );
+  await page.screenshot({ path: join(shots, 'cd-settings.png') });
+  await page.click('.desktop-card button:has-text("Remove")');
+  const desktopGone = await until(
+    async () =>
+      (await page.isVisible('.desktop-card .badge:has-text("not connected")')) &&
+      !readDesktopCfg().mcpServers.switchyard &&
+      !existsSync(join(home, 'run', 'claude-desktop.json')),
+  );
+  check(!!desktopGone, 'CD Remove deletes the entry, the node and its run file');
   await page.keyboard.press('Escape');
 
   // ---------------- Phase 8: remote/mobile view is read-only but can answer
