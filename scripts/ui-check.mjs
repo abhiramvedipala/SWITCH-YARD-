@@ -78,6 +78,8 @@ const server = spawn(process.execPath, [join(root, 'packages/core/dist/server.js
     SWITCHYARD_SCRATCH_ROOT: join(root, 'scratch'),
     // Test-only knob (default 590 s): the F5 timeout check waits for a permission request to expire.
     SWITCHYARD_PERMISSION_TIMEOUT_MS: '1500',
+    // The owner's login shell is oh-my-zsh; its "Would you like to update? [Y/n]" prompt would eat the first typed key.
+    DISABLE_AUTO_UPDATE: 'true',
     PATH: `${fakeBin}:${process.env.PATH}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
