@@ -57,6 +57,7 @@ import {
   desktopStatus,
   connectClaudeDesktop,
   removeClaudeDesktop,
+  DESKTOP_NODE,
 } from '../harness/claude-desktop.js';
 import type { NodeType } from '../store.js';
 import { usageSummary } from '../usage/index.js';
@@ -584,7 +585,17 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
   );
   app.delete(
     '/api/nodes/:id',
-    h((req) => nodes.remove(p<{ id: string }>(req).id)),
+    h((req) => {
+      const { id } = p<{ id: string }>(req);
+      // Deleting it would silently revoke every Claude Desktop chat; the connector's Remove is the way out.
+      if (id === DESKTOP_NODE && (req.query as { force?: string }).force !== '1')
+        throw new BusError(
+          'desktop_identity',
+          "This node is Claude Desktop's identity; use Settings → Claude Desktop → Remove to disconnect",
+          409,
+        );
+      nodes.remove(id);
+    }),
   );
   app.post(
     '/api/nodes/:id/restart',

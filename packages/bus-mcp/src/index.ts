@@ -2,7 +2,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { BusClient, BusHttpError, resolveNodeId, type BusCaller } from './client.js';
+import {
+  BusClient,
+  BusHttpError,
+  DESKTOP_NOT_ACTIVE,
+  isDesktopCapFile,
+  resolveNodeId,
+  type BusCaller,
+} from './client.js';
 
 const NOT_ON_CANVAS =
   'This process is not attached to a Switchyard node (no usable SWITCHYARD_CAPFILE, no SWITCHYARD_NODE and no identity file for this folder). Start the agent from a Switchyard canvas to use these tools.';
@@ -226,7 +233,7 @@ async function main() {
   const getClient = () => {
     if (client) return client;
     const id = resolveNodeId();
-    if (!id) throw new Error(NOT_ON_CANVAS);
+    if (!id) throw new Error(isDesktopCapFile() ? DESKTOP_NOT_ACTIVE : NOT_ON_CANVAS);
     client = new BusClient(id);
     return client;
   };

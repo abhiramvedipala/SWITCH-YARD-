@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 export interface RunFile {
   nodeId: string;
@@ -77,6 +77,12 @@ export function resolveNodeId(cwd = process.cwd()): string | null {
   return null;
 }
 
+/** Claude Desktop's entry names this run file; it is gone when the connection (its canvas node) is. */
+export const DESKTOP_NOT_ACTIVE =
+  "Switchyard's Claude Desktop connection is not active. In Switchyard: Settings → Claude Desktop → Connect.";
+export const isDesktopCapFile = () =>
+  basename(process.env.SWITCHYARD_CAPFILE ?? '') === 'claude-desktop.json';
+
 export function loadRunFile(nodeId: string): RunFile {
   const cf = capFile();
   if (cf) {
@@ -86,6 +92,7 @@ export function loadRunFile(nodeId: string): RunFile {
     return cf;
   }
   const p = join(switchyardHome(), 'run', `${nodeId}.json`);
+  if (!existsSync(p) && isDesktopCapFile()) throw new Error(DESKTOP_NOT_ACTIVE);
   if (!existsSync(p))
     throw new Error(`no Switchyard run file for node ${nodeId} (is the Switchyard core running?)`);
   return JSON.parse(readFileSync(p, 'utf8')) as RunFile;

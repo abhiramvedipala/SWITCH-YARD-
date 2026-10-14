@@ -94,12 +94,16 @@ export function removeDesktopEntry(): { changed: boolean } {
 }
 
 export function desktopStatus(core: Core) {
+  const config = desktopEntryState();
+  const node = core.store.getNode(DESKTOP_NODE);
   return {
-    config: desktopEntryState(),
+    config,
+    /** detached = the entry is there but its node (and so its run file) is gone: chats have no identity. */
+    status: config !== 'present' ? 'off' : node ? 'connected' : 'detached',
     configPath: claudeDesktopConfigPath(),
     nodeId: DESKTOP_NODE,
     /** The one workspace the identity is bound to (its node row), or null when not connected. */
-    workspaceId: core.store.getNode(DESKTOP_NODE)?.workspaceId ?? null,
+    workspaceId: node?.workspaceId ?? null,
   };
 }
 

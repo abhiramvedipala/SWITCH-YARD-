@@ -248,10 +248,57 @@ describe('Claude Desktop identity (core + real bus-mcp)', () => {
         workspaceId: null,
       });
       expect(existsSync(runFile())).toBe(false);
-      await expect(call('whoami')).rejects.toThrow(/no Switchyard run file|unauthorized/);
+      await expect(call('whoami')).rejects.toThrow(
+        "Switchyard's Claude Desktop connection is not active. In Switchyard: Settings → Claude Desktop → Connect.",
+      );
     } finally {
       await client.close();
     }
+  }, 30_000);
+
+  it('deleting the base node is refused (409) unless forced; then the card reports detached', async () => {
+    await ui('POST', { action: 'connect', workspaceId: wsA });
+    expect((await ui('GET')).json()).toMatchObject({ config: 'present', status: 'connected' });
+    const del = (q = '') =>
+      built.app.inject({
+        method: 'DELETE',
+        url: `/api/nodes/claude-desktop${q}`,
+        headers: { authorization: `Bearer ${built.token}`, ...host() },
+      });
+    const r = await del();
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toEqual({
+      error: 'desktop_identity',
+      message:
+        "This node is Claude Desktop's identity; use Settings → Claude Desktop → Remove to disconnect",
+    });
+    expect(built.core.store.getNode('claude-desktop')).toBeDefined();
+    expect(existsSync(runFile())).toBe(true);
+
+    expect((await del('?force=1')).statusCode).toBe(200);
+    expect(built.core.store.getNode('claude-desktop')).toBeUndefined();
+    expect((await ui('GET')).json()).toMatchObject({
+      config: 'present',
+      status: 'detached',
+      workspaceId: null,
+    });
+    // A Claude Desktop restarted now gets told how to fix it, not "not attached to a Switchyard node".
+    const entry = read().mcpServers.switchyard;
+    const client = new Client({ name: 'fake-claude-desktop', version: '0' });
+    await client.connect(new StdioClientTransport({ ...entry, stderr: 'pipe' }));
+    try {
+      const res = (await client.callTool({ name: 'whoami', arguments: {} })) as {
+        content: { text: string }[];
+        isError?: boolean;
+      };
+      expect(res.isError).toBe(true);
+      expect(res.content[0]!.text).toBe(
+        "Error — Switchyard's Claude Desktop connection is not active. In Switchyard: Settings → Claude Desktop → Connect.",
+      );
+    } finally {
+      await client.close();
+    }
+    expect((await ui('POST', { action: 'remove' })).json()).toMatchObject({ status: 'off' });
   }, 30_000);
 
   it('Connect to another workspace moves the one identity there and drops its old edges', async () => {
