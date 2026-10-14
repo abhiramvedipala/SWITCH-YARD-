@@ -46,6 +46,7 @@ Neither is required: the **Mock agent** uses the same message system with no AI.
 - **macOS notifications** (Settings → Behavior, off by default): a banner when an agent asks a question, waits for a permission or stops at a prompt. One per item, at most one every 2 s. Changeable only on the computer itself. If none appear, allow notifications for Script Editor in System Settings → Notifications.
 - Or open the UI in Safari/Chrome and use _Add to Dock_ - a `manifest.webmanifest` is served.
 - `npm run stop` stops the server (pid file in `~/.switchyard/server.pid`). Logs: `~/.switchyard/server.log`.
+- The app has a floating **Needs you** panel (View ▸ Needs You Panel, ⌥⌘N, or click the menu-bar item: ✓ nothing, ● N items). It lists questions, permission prompts, trust prompts and unread agents and lets you answer, Allow / Deny, Accept or Open without raising the main window. ⌘W just hides it. `make-app.sh` keeps the previous build at `~/.switchyard/Switchyard.app.bak`.
 - It stays light: the server idles at ~80 MB and runs with a tiny young-generation heap.
 
 ## What's on the canvas
@@ -66,6 +67,7 @@ Other views and panels:
 - **Board:** shared tasks (Open / In progress / Done). Agents use `list_tasks`, `claim_task` and `complete_task`; you drag cards or "Assign to…" an agent.
 - **Runs:** goal → editable plan → approve → build → review (up to 3 rounds) → result card with evidence (files touched, `git diff --stat`, test output, or an honest "unverified"). Every step row carries a muted `1.2k tok · $0.03` badge and the card has a `Usage:` total (tokens only when the harness reports no price, e.g. Antigravity or the mock).
 - **Needs you:** questions from `ask_user`, permission prompts read off the screen, and idle agents with unread messages. Each item has a reply box.
+- **Rooms:** one conversation with several AIs at once. Add Claude, Codex, Antigravity, an API-key model or the mock as participants; talk to everyone or `@name` one. Modes: everyone / only @mentioned / one after another. Seed a room from an imported Claude.ai, ChatGPT or Claude Code conversation. Canvas agents join with the bus tools `list_rooms`, `read_room`, `post_to_room`. Stop halts every answer.
 - **Ask Switchyard:** project chat that sees a snapshot of the canvas. It defaults to Antigravity to save Claude usage.
 - **Import sessions:** resume past Claude Code sessions, Antigravity conversations, or Claude.ai / ChatGPT export files (imported as read-only docs).
 - **Keyboard:** `⌘K` command palette, `F` focus the selected node, `Esc` to go back (`Shift+Esc` inside a terminal).

@@ -136,12 +136,27 @@ npm start                     # note the token it prints
 
 Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversation, work at the same time and take instructions. Decisions are in DECISIONS.md (2026-10-14). Four parallel streams:
 
-- [ ] **Rooms core** — `rooms`, `room_participants`, `room_messages` tables; modes `all` / `mention` / `round`; per-participant CLI sessions that see only unseen lines; @mention chain cap; Stop; seed from an imported Claude.ai / ChatGPT export; bus tools `list_rooms` / `read_room` / `post_to_room`; Rooms view in the web UI; mock-driven tests + ui-checks in Chromium and WebKit.
+- [x] **Rooms core** (2026-10-14) — `rooms` / `room_participants` / `room_messages`; orchestration (`all` / `mention` / `round`, a human @mention narrows any mode, participant-to-participant @mentions chain at most 2 replies, Stop, unseen-lines-only prompts, sessions resumed per participant, usage per room and participant); seeding from an imported Claude.ai / ChatGPT export or Claude Code session (20k-char cap); bus tools `list_rooms` / `read_room` / `post_to_room` scoped to the workspace (17 tools); phone can read and post only; Rooms view with streaming and @mention autocomplete. 19 vitest, e2e rooms scenario, 8 ui-checks in Chromium and WebKit. **Not tried with real participants** → OWNER CHECK R1 below.
 - [x] **`codex` harness** (2026-10-14) — ChatGPT through OpenAI's Codex CLI: `codex exec --json` driven turns (`--sandbox workspace-write`, `approval_policy=never`, bypass only with YOLO), resume by thread id, bus MCP attached per process via `--config mcp_servers.switchyard.*` (nothing written to `~/.codex`), detection via `codex --version` + `codex login status` exit code. Listed in + Add, Settings and every harness picker. Fake-binary tests only (217 vitest, 43 ui-checks). **Codex is not installed yet** → OWNER CHECK CX below.
 - [x] **API-key harnesses** (2026-10-14) — `api-anthropic` (Messages API), `api-openai` (Responses API, `store:false`), `api-gemini` (`streamGenerateContent` SSE): chat-only, no tools; keys as 0600 files in `~/.switchyard/keys/` with local-only routes that return only `{configured, last4}`; official hosts hard-coded, `redirect:'error'`; history in `api_history` (100 turns / ~400k chars per session, 200 sessions); Settings → API keys card, + Add entries, per-node model. Defaults `claude-opus-5-5`, `gpt-6-astra`, `gemini-3.8-flash` (checked against the docs 2026-10-14). 22 vitest against fake 127.0.0.1 servers, 3 ui-checks. **Not tried with a real key** → OWNER CHECK AK below.
 - [x] **Claude Desktop connector** (2026-10-14) — config writer (present / absent / stale / invalid, `.bak` once, invalid JSON refused), fixed `claude-desktop` external canvas node with a 0600 run file rotated on Connect and core boot and revoked on Remove, bus-mcp `whoami`, Settings card. 208 vitest, e2e (14 tools), 43 ui-checks. **Not yet tried with a real Claude Desktop** (owner step below).
 
 Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
+
+### Native app: floating Needs-you panel (2026-10-14)
+
+**What changed:** `SwitchyardApp.swift` gained a floating NSPanel (View ▸ Needs You Panel, ⌥⌘N) and a menu-bar item (✓ nothing / ● N / ○ core unreachable). Rows come from `/api/attention` (long-poll while open, `/api/attention/summary` every 30 s while only the menu-bar item shows): answer a question, Allow / Deny / Ask a permission, Accept a trust prompt, Open an unread agent. ⌘W hides it. `make-app.sh` keeps the previous build at `~/.switchyard/Switchyard.app.bak`.
+**How to try it:** `npm run mac:app && open ~/Applications/Switchyard.app`, then ⌥⌘N. `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` (20 checks; a mock question is answered through the panel's own handler via the test-only `SWITCHYARD_PANEL_SELFTEST=1`).
+**Unverified by eye:** the panel's layout (no Screen Recording permission for screenshots); typing in the row's text field.
+
+### OWNER CHECK R1 — a Room with two real AIs
+
+1. Restart the app on the current build (`cd ~/switchyard && npm run stop && open ~/Applications/Switchyard.app`).
+2. Top bar → **Rooms** → New room (in a scratch workspace) → add participant **Claude Code** (name it `Claude`) and one more: **Codex** (after OWNER CHECK CX), or **Claude API / OpenAI API / Gemini API chat** (after OWNER CHECK AK), or **Mock** just to see the flow.
+3. Mode `all`, send: `Each of you: say hello in one line and tell me which model you are.`
+4. Then: `@Claude ask the other participant what 2+2 is and report back.`
+5. **Pass:** every participant answers the first message; only Claude answers the second, then the other participant answers its @mention, and the chain stops (at most 2 follow-ups). Stop halts a running answer.
+6. Paste back the transcript and the usage badges.
 
 ## Acceptance (real agents; one OWNER CHECK at a time, fresh `~/.switchyard/scratch` workspace each)
 
@@ -301,7 +316,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-13 evening, master):** lint clean · 192 vitest · e2e 19 PASS lines · 40 ui-checks · selftest footprint 39 MB, CPU 0.9 % (budget 140 MB / 3 %). `npm run test:all` runs everything in order.
+**Check inventory (2026-10-14, master):** lint clean · 258 vitest · e2e 24 PASS lines · 54 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~39 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 
