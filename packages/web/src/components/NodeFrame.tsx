@@ -113,17 +113,38 @@ export function NodeMenu({ node, onClose }: { node: SNode; onClose: () => void }
           {node.yolo ? 'Turn off YOLO mode' : 'YOLO mode (skip permissions)…'}
         </button>
       )}
-      <button
-        className="danger"
-        onClick={() =>
-          act(async () => {
-            if (confirm(`Delete "${node.title}"?${isPty ? ' Its process will be stopped.' : ''}`))
-              await api.del(`/api/nodes/${node.id}`);
-          })
-        }
-      >
-        Delete
-      </button>
+      {node.id === 'claude-desktop' ? (
+        // The base node is Claude Desktop's identity (every chat acts through it): disconnect, never a bare delete.
+        <button
+          className="danger"
+          onClick={() =>
+            act(async () => {
+              if (
+                confirm(
+                  'Disconnect Claude Desktop? This removes the switchyard entry from its config and revokes the identity of every Claude Desktop chat.',
+                )
+              ) {
+                await api.post('/api/claude-desktop', { action: 'remove' });
+                notify('Removed the switchyard entry and revoked its identity');
+              }
+            })
+          }
+        >
+          Disconnect Claude Desktop…
+        </button>
+      ) : (
+        <button
+          className="danger"
+          onClick={() =>
+            act(async () => {
+              if (confirm(`Delete "${node.title}"?${isPty ? ' Its process will be stopped.' : ''}`))
+                await api.del(`/api/nodes/${node.id}`);
+            })
+          }
+        >
+          Delete
+        </button>
+      )}
     </div>
   );
 }

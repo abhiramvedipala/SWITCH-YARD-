@@ -8,6 +8,7 @@ import { Modal, timeAgo } from './bits.js';
 // ------------------------------------------------------------------ settings
 interface DesktopStatus {
   config: 'present' | 'absent' | 'stale' | 'invalid';
+  status: 'connected' | 'detached' | 'off';
   configPath: string;
   workspaceId: string | null;
 }
@@ -63,6 +64,11 @@ function ClaudeDesktopCard() {
         </span>
         {st && <span className="muted small">{DESKTOP_CONFIG_LABEL[st.config]}</span>}
       </div>
+      {st?.status === 'detached' && (
+        <div className="warn-text small desktop-detached" role="alert">
+          ⚠ Claude Desktop is not attached to a workspace — press Connect
+        </div>
+      )}
       {st && <div className="muted small mono">{st.configPath}</div>}
       <div className="row wrap small">
         <label>

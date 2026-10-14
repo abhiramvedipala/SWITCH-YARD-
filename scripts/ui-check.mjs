@@ -773,6 +773,19 @@ try {
       (await page.textContent(chatSel))?.includes('Claude.app chat'),
     'CD "Join Switchyard as GPA" puts a chat node with the 💬 badge on the canvas',
   );
+  // The base node is the connector's identity: its menu offers Disconnect, not a bare Delete.
+  await page.click('.react-flow__controls-fitview');
+  const baseSel = '.react-flow__node[data-id="claude-desktop"]';
+  await page.click(`${baseSel} button[aria-label="Node menu"]`);
+  const baseMenu = await until(() =>
+    page.isVisible(`${baseSel} .menu button:has-text("Disconnect Claude Desktop…")`),
+  );
+  check(
+    !!baseMenu && !(await page.isVisible(`${baseSel} .menu button:text-is("Delete")`)),
+    'CD the Claude Desktop node menu shows "Disconnect Claude Desktop…" instead of Delete',
+  );
+  await page.hover(`${baseSel} .menu`); // the menu closes when the pointer leaves it
+  await page.mouse.move(5, 5);
   await api('POST', `/api/nodes/${gpa.nodeId}/message`, { body: 'The build passed.' });
   if (!(await page.isVisible('.side .needs'))) await page.click('button:has-text("Needs you")');
   const chatUnread = await until(() => page.textContent('.attn-unread .attn-text'), 8000);
