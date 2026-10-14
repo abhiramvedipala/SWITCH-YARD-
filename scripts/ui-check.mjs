@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import {
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
   existsSync,
@@ -648,6 +649,35 @@ try {
     'P7 import dialog lists Claude Code sessions from the projects folder',
   );
   await page.screenshot({ path: join(shots, 'p7-import.png') });
+  // Continue in…: the session becomes HANDOFF-<slug>.md in the workspace folder; a Mock agent reads it first.
+  await page.click('.session:has-text("Refactor the parser") button:has-text("Continue in…")');
+  await page.selectOption('.handoff-harness', 'term:mock');
+  await page.selectOption('.handoff-ws', ws.id);
+  await page.click('.handoff button:has-text("Open")');
+  const handoffNode = await until(async () =>
+    (await api('GET', `/api/workspaces/${ws.id}/graph`)).data.nodes.find(
+      (n) => n.harness === 'mock' && n.title.startsWith('Hand-off:'),
+    ),
+  );
+  const handoffFile = readdirSync(wsDir).find((f) => /^HANDOFF-[a-z0-9-]+\.md$/.test(f));
+  check(
+    !!handoffFile &&
+      readFileSync(join(wsDir, handoffFile), 'utf8').includes(
+        'Continue this work. Ask if anything is unclear.',
+      ),
+    `P7 Continue in… writes ${handoffFile ?? 'HANDOFF-<slug>.md'} into the workspace folder`,
+  );
+  check(
+    !!handoffNode &&
+      !!(await until(
+        async () =>
+          (await termText(handoffNode.id))?.includes(`initial prompt: Read ${handoffFile}`),
+        15_000,
+      )) &&
+      !!(await until(() => page.$(`.react-flow__node[data-id="${handoffNode.id}"].selected`))),
+    'P7 … and opens a selected Mock agent node that starts by reading it',
+  );
+  await page.screenshot({ path: join(shots, 'p7-handoff.png') });
   await page.keyboard.press('Escape');
 
   // ---------------- Claude Desktop connector (Settings card, temp config file)
