@@ -44,7 +44,8 @@ function real(p: string): string {
   }
 }
 
-function inside(child: string, parent: string): boolean {
+/** True when `child` is `parent` or lives under it (both already resolved). */
+export function inside(child: string, parent: string): boolean {
   return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 

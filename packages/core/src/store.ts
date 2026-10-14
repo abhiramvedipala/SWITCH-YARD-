@@ -9,6 +9,8 @@ export type NodeType =
   | 'note'
   | 'doc'
   | 'browser'
+  /** File tree + editor over the workspace folder. */
+  | 'files'
   /** Claude Desktop's identity: an agent Switchyard did not start (no PTY, no driven turns). */
   | 'external';
 
