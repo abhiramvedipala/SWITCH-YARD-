@@ -143,6 +143,12 @@ Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversa
 
 Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
 
+### Usage: Claude cost on resumed turns (2026-10-14)
+
+**What changed:** Claude Code reports a session's running `total_cost_usd` on every resumed turn (docs: "summing results double-counts the restored spend"), and every driven turn resumes a session, so chat / run / room cost badges over-counted. `recordUsage` now bills the per-turn delta per session id (cursor = the session's last usage row; a lower total or a new session id bills the full figure), keeps the raw value in `usage.reported_cost_usd`, and migration 6 repairs existing rows (the owner's $8.45 room → $4.65; global Claude total $8.66 → $4.86). Token counts were already per turn. agy, codex and API harnesses report per turn and are unchanged.
+**How to try it:** `npx vitest run packages/core/src/usage` (+4 tests: 0.10 / 0.25 / 0.30 → 0.10 / 0.15 / 0.05, session change, decreasing total, repair pass).
+**Caveat:** rows from Claude Code < 2.1.277 were per-turn already and can't be told apart; `modelUsage` is cumulative too and is not recorded.
+
 ### Native app: floating Needs-you panel (2026-10-14)
 
 **What changed:** `SwitchyardApp.swift` gained a floating NSPanel (View ▸ Needs You Panel, ⌥⌘N) and a menu-bar item (✓ nothing / ● N / ○ core unreachable). Rows come from `/api/attention` (long-poll while open, `/api/attention/summary` every 30 s while only the menu-bar item shows): answer a question, Allow / Deny / Ask a permission, Accept a trust prompt, Open an unread agent. ⌘W hides it. `make-app.sh` keeps the previous build at `~/.switchyard/Switchyard.app.bak`.
@@ -323,7 +329,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-14 evening, master):** lint clean · 294 vitest · e2e 24 PASS lines · 61 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
+**Check inventory (2026-10-14 evening, master):** lint clean · 298 vitest · e2e 24 PASS lines · 61 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 

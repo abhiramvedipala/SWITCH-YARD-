@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { DB_PATH, ensureDirs } from '../paths.js';
+import { USAGE_REPAIR_SQL } from '../usage/index.js';
 
 export type Db = Database.Database;
 
@@ -171,6 +172,14 @@ const MIGRATIONS: string[] = [
   ALTER TABLE usage ADD COLUMN room_id TEXT;
   ALTER TABLE usage ADD COLUMN participant_id TEXT;
   CREATE INDEX usage_room ON usage (room_id);
+  `,
+  // Claude reports a session's running total per resumed turn: keep the raw figure, bill deltas per session,
+  // and recompute the rows recorded before this (usage/index.ts: USAGE_REPAIR_SQL).
+  `
+  ALTER TABLE usage ADD COLUMN session_id TEXT;
+  ALTER TABLE usage ADD COLUMN reported_cost_usd REAL;
+  CREATE INDEX usage_session ON usage (session_id);
+  ${USAGE_REPAIR_SQL}
   `,
 ];
 
