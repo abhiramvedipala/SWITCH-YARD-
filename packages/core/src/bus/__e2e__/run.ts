@@ -13,6 +13,7 @@ const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');
 const { runPersistentScenario } = await import('./persistent-scenario.js');
 const { runRoomsScenario } = await import('./rooms-scenario.js');
+const { runDesktopScenario } = await import('./desktop-scenario.js');
 
 let failed = false;
 const check = (cond: boolean, msg: string) => {
@@ -23,9 +24,11 @@ const check = (cond: boolean, msg: string) => {
 console.log('== bus (Phase 3 DoD) ==');
 const r = await runBusScenario((s) => console.log(`  ${s}`));
 check(
-  r.tools.length === 17 &&
-    ['whoami', 'list_rooms', 'read_room', 'post_to_room'].every((t) => r.tools.includes(t)),
-  `bus-mcp exposes 17 tools incl. whoami and the room tools (${r.tools.length})`,
+  r.tools.length === 19 &&
+    ['whoami', 'list_rooms', 'read_room', 'post_to_room', 'join_switchyard'].every((t) =>
+      r.tools.includes(t),
+    ),
+  `bus-mcp exposes 19 tools incl. whoami, the room tools and join_switchyard (${r.tools.length})`,
 );
 check(
   r.reply.status === 'replied' && r.reply.body === 'pong',
@@ -99,5 +102,29 @@ check(
   `read_room since= returns what came after (${rm.read.length} messages)`,
 );
 check(rm.usageTurns === 3, `usage recorded per participant turn (${rm.usageTurns})`);
+
+console.log('== Claude Desktop chats (one bus-mcp process, two joined chats) ==');
+const cd = await runDesktopScenario((s) => console.log(`  ${s}`));
+check(
+  cd.gpa.nodeId === 'claude-desktop:gpa' && cd.essay.nodeId === 'claude-desktop:essay',
+  'join_switchyard twice from one process makes two chat nodes',
+);
+check(
+  cd.gpaPeers.length === 1 && cd.essayPeers.length === 0 && cd.essayInbox.length === 0,
+  'each chat is scoped by its own edges (Essay has none)',
+);
+check(
+  cd.reply.status === 'replied' && cd.reply.body === 'B+' && cd.reply.from === 'claude-desktop:gpa',
+  'Builder → request → GPA (as:GPA) → response → Builder wait_for_reply got "B+"',
+);
+check(
+  /unauthorized/.test(cd.foreignAsError) && /not_connected/.test(cd.essayError),
+  'an agent naming a chat gets the shared 401; an unconnected chat cannot message',
+);
+check(
+  cd.unreadText ===
+    'GPA chat has 1 unread — open that chat in Claude and say "check my switchyard inbox"',
+  'the unread item tells the human which chat to open',
+);
 
 process.exit(failed ? 1 : 0);

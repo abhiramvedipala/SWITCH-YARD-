@@ -745,6 +745,47 @@ try {
     'CD Connect adds only the switchyard entry and a Claude Desktop node on the canvas',
   );
   await page.screenshot({ path: join(shots, 'cd-settings.png') });
+
+  // Claude Desktop chats: "Join Switchyard as GPA" over the bus API with the capability from the run file
+  // (what the chat's bus-mcp does); the chat is its own small node and its unread wait for the human.
+  await page.keyboard.press('Escape');
+  await page.click('.views button:has-text("Canvas")');
+  const desktopRun = JSON.parse(readFileSync(join(home, 'run', 'claude-desktop.json'), 'utf8'));
+  const busAsDesktop = async (path, body, as) =>
+    (
+      await fetch(base + path, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-switchyard-node': 'claude-desktop',
+          'x-switchyard-cap': desktopRun.capability,
+          ...(as ? { 'x-switchyard-as': as } : {}),
+        },
+        body: JSON.stringify(body),
+      })
+    ).json();
+  const gpa = await busAsDesktop('/bus/join', { name: 'GPA' });
+  const chatSel = `.react-flow__node[data-id="${gpa.nodeId}"]`;
+  const chatShown = await until(() => page.isVisible(`${chatSel} .badge-chat`));
+  check(
+    gpa.nodeId === 'claude-desktop:gpa' &&
+      !!chatShown &&
+      (await page.textContent(chatSel))?.includes('Claude.app chat'),
+    'CD "Join Switchyard as GPA" puts a chat node with the 💬 badge on the canvas',
+  );
+  await api('POST', `/api/nodes/${gpa.nodeId}/message`, { body: 'The build passed.' });
+  if (!(await page.isVisible('.side .needs'))) await page.click('button:has-text("Needs you")');
+  const chatUnread = await until(() => page.textContent('.attn-unread .attn-text'), 8000);
+  check(
+    chatUnread?.includes('GPA chat has 1 unread') &&
+      chatUnread.includes('say "check my switchyard inbox"') &&
+      !(await page.isVisible('.attn-unread button:has-text("Tell it to check")')),
+    'CD a message to the chat shows in Needs you as "GPA chat has 1 unread — open that chat…"',
+  );
+  await page.screenshot({ path: join(shots, 'cd-chat-node.png') });
+  await busAsDesktop('/bus/inbox', {}, 'GPA'); // the chat reads it: the item clears
+  await page.click('button[title="Settings"]');
+  await page.waitForSelector('.desktop-card');
   await page.click('.desktop-card button:has-text("Remove")');
   const desktopGone = await until(
     async () =>

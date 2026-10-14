@@ -301,4 +301,178 @@ describe('Claude Desktop identity (core + real bus-mcp)', () => {
     expect(existsSync(runFile())).toBe(false);
     expect((await ui('GET')).json()).toMatchObject({ config: 'invalid' });
   });
+
+  // ---------------------------------------------------------------- per-chat identities (join_switchyard / as)
+  const GPA = 'claude-desktop:gpa';
+  const ESSAY = 'claude-desktop:essay';
+  const UNREAD_TEXT =
+    'GPA chat has 2 unread — open that chat in Claude and say "check my switchyard inbox"';
+  /** A /bus call with the base Claude Desktop capability; `as` names the chat to act as. */
+  const bus = (
+    method: 'GET' | 'POST',
+    url: string,
+    body?: unknown,
+    as?: string,
+    node = 'claude-desktop',
+    cap = rf().capability,
+  ) =>
+    built.app.inject({
+      method,
+      url,
+      headers: {
+        ...host(),
+        'x-switchyard-node': node,
+        'x-switchyard-cap': cap,
+        ...(as === undefined ? {} : { 'x-switchyard-as': as }),
+      },
+      payload: body as object,
+    });
+  let peerCap: string;
+
+  it('join_switchyard creates claude-desktop:<slug> in the connector workspace and reuses it by slug', async () => {
+    await ui('POST', { action: 'connect', workspaceId: wsA });
+    peerCap = built.core.caps.issue(peer, wsA).capability;
+    const r = await bus('POST', '/bus/join', { name: 'GPA' });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({
+      nodeId: GPA,
+      name: 'GPA',
+      hint: "Pass as:'GPA' in every later switchyard call.",
+      peers: [],
+    });
+    expect(built.core.store.getNode(GPA)).toMatchObject({
+      workspaceId: wsA,
+      type: 'external',
+      harness: 'claude-desktop',
+      title: 'GPA',
+      state: 'external',
+      data: { kind: 'chat' },
+      w: 220,
+    });
+    // Same slug, same node (and the canvas title is left alone); nothing else is created.
+    expect((await bus('POST', '/bus/join', { name: ' gpa! ' })).json().nodeId).toBe(GPA);
+    expect(built.core.store.getNode(GPA)!.title).toBe('GPA');
+    expect(
+      built.core.store.listNodes(wsA).filter((n) => n.harness === 'claude-desktop').length,
+    ).toBe(2);
+    expect((await bus('POST', '/bus/join', { name: '!!!' })).json()).toMatchObject({
+      error: 'bad_name',
+    });
+    // Agents started from the canvas already have a node: they cannot join.
+    const foreign = await bus('POST', '/bus/join', { name: 'X' }, undefined, peer, peerCap);
+    expect(foreign.statusCode).toBe(403);
+    expect(foreign.json().error).toBe('not_claude_desktop');
+    expect(built.core.store.getNode('claude-desktop:x')).toBeUndefined();
+  });
+
+  it('`as` is honoured for the base identity only; any other caller gets the shared 401', async () => {
+    expect((await bus('GET', '/bus/whoami', undefined, 'GPA')).json()).toEqual({
+      nodeId: GPA,
+      title: 'GPA',
+      workspaceId: wsA,
+      harness: 'claude-desktop',
+    });
+    for (const r of [
+      await bus('GET', '/bus/whoami', undefined, 'GPA', peer, peerCap), // a peer naming a chat
+      await bus('GET', '/bus/whoami', undefined, 'nope', peer, peerCap), // ...or a non-chat
+      await bus('GET', '/bus/whoami', undefined, undefined, GPA), // the chat id with the base cap
+    ]) {
+      expect(r.statusCode).toBe(401);
+      expect(r.json()).toEqual(UNAUTHORIZED);
+    }
+    const unknown = await bus('GET', '/bus/whoami', undefined, 'Nope');
+    expect(unknown.statusCode).toBe(404);
+    expect(unknown.json()).toMatchObject({ error: 'unknown_chat' });
+    expect(existsSync(join(home, 'run', `${GPA}.json`))).toBe(false);
+  });
+
+  it('each chat is scoped by its own edges: peers, inbox and responses per sub-node', async () => {
+    await bus('POST', '/bus/join', { name: 'Essay' });
+    built.core.store.createEdge(wsA, GPA, peer);
+    expect((await bus('GET', '/bus/peers', undefined, 'GPA')).json().peers).toEqual([
+      expect.objectContaining({ nodeId: peer }),
+    ]);
+    expect((await bus('GET', '/bus/peers', undefined, 'Essay')).json().peers).toEqual([]);
+    expect(built.core.bus.listPeers(peer)).toEqual([expect.objectContaining({ nodeId: GPA })]);
+
+    const { messageId } = built.core.bus.sendMessage(peer, {
+      peerId: GPA,
+      intent: 'request',
+      body: 'grade this',
+    });
+    expect(() =>
+      built.core.bus.sendMessage(peer, { peerId: ESSAY, intent: 'notify', body: 'hi' }),
+    ).toThrow(/not connected/);
+    expect((await bus('POST', '/bus/inbox', {}, 'Essay')).json().messages).toEqual([]);
+    expect((await bus('POST', '/bus/inbox', {}, 'GPA')).json().messages).toEqual([
+      expect.objectContaining({ messageId, from: peer, body: 'grade this', needsReply: true }),
+    ]);
+    const answer = await bus(
+      'POST',
+      '/bus/messages',
+      { peerId: peer, intent: 'response', responseTo: messageId, body: 'A-' },
+      'GPA',
+    );
+    expect(answer.statusCode).toBe(200);
+    expect(await built.core.bus.waitForReply(peer, messageId, 5)).toMatchObject({
+      status: 'replied',
+      from: GPA,
+      body: 'A-',
+    });
+    expect(await built.core.bus.waitForNodes(peer, [GPA], 5)).toMatchObject({ status: 'settled' });
+    await bus('POST', '/bus/summary', { text: 'grading' }, 'GPA');
+    expect(built.core.store.getNode(GPA)!.summary).toBe('grading');
+    expect(built.core.store.getNode('claude-desktop')!.summary).toBe('');
+  });
+
+  it('unread messages to a chat show in Needs you with the relay instruction, with no PTY nudge', async () => {
+    built.core.bus.sendFromUser(GPA, { intent: 'notify', body: 'one' });
+    built.core.bus.sendFromUser(GPA, { intent: 'notify', body: 'two' });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(built.core.monitor.attention(wsA)).toEqual([
+      expect.objectContaining({
+        kind: 'unread',
+        nodeId: GPA,
+        nodeTitle: 'GPA',
+        nodeType: 'external',
+        count: 2,
+        text: UNREAD_TEXT,
+      }),
+    ]);
+    expect(built.core.monitor.nudgeCount).toBe(0);
+    await bus('POST', '/bus/inbox', {}, 'GPA');
+    expect(built.core.monitor.attention(wsA)).toEqual([]);
+  });
+
+  it('leave marks the chat left (node kept), join clears it, Delete and Remove drop chat nodes', async () => {
+    expect((await bus('POST', '/bus/leave', { name: 'GPA' })).json()).toEqual({
+      nodeId: GPA,
+      left: true,
+    });
+    expect(built.core.store.getNode(GPA)!.data).toEqual({ kind: 'chat', left: true });
+    expect((await bus('GET', '/bus/whoami', undefined, 'GPA')).statusCode).toBe(200);
+    await bus('POST', '/bus/join', { name: 'GPA' });
+    expect(built.core.store.getNode(GPA)!.data).toEqual({ kind: 'chat' });
+    expect((await bus('POST', '/bus/leave', { name: 'Nope' })).statusCode).toBe(404);
+    // A boot rotates the base identity only: chat nodes never get a run file.
+    built.core.nodes.onBoot();
+    expect(existsSync(join(home, 'run', `${GPA}.json`))).toBe(false);
+    expect((await bus('GET', '/bus/whoami', undefined, 'GPA')).statusCode).toBe(200);
+    // Delete from the node menu removes the chat and its edges.
+    built.core.store.createEdge(wsA, ESSAY, peer);
+    const del = await built.app.inject({
+      method: 'DELETE',
+      url: `/api/nodes/${ESSAY}`,
+      headers: { authorization: `Bearer ${built.token}`, ...host() },
+    });
+    expect(del.statusCode).toBe(200);
+    expect(built.core.store.getNode(ESSAY)).toBeUndefined();
+    expect(built.core.store.listEdges(wsA).some((e) => e.from === ESSAY || e.to === ESSAY)).toBe(
+      false,
+    );
+    // Remove takes the base identity and every chat that acted through it.
+    await ui('POST', { action: 'remove' });
+    expect(built.core.store.getNode(GPA)).toBeUndefined();
+    expect(built.core.store.listEdges(wsA)).toEqual([]);
+  });
 });

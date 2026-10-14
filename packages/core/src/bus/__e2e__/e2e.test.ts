@@ -16,9 +16,10 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
   it('Phase 3 DoD: request/response between connected mocks; unconnected node isolated', async () => {
     const { runBusScenario } = await import('./scenario.js');
     const r = await runBusScenario();
-    expect(r.tools).toHaveLength(17);
+    expect(r.tools).toHaveLength(19);
     expect(r.tools).toContain('whoami');
     expect(r.tools).toEqual(expect.arrayContaining(['list_rooms', 'read_room', 'post_to_room']));
+    expect(r.tools).toEqual(expect.arrayContaining(['join_switchyard', 'leave_switchyard']));
     expect(r.reply).toMatchObject({ status: 'replied', body: 'pong' });
     expect(r.cPeers).toEqual([]);
     expect(r.cInbox).toEqual([]);
@@ -73,5 +74,27 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
       expect.stringMatching(/^participant:Mock [AB]$/),
     ]);
     expect(r.usageTurns).toBe(3);
+  }, 60_000);
+
+  it('Claude Desktop: one bus-mcp process joins as two chats, each scoped by its own edges', async () => {
+    const { runDesktopScenario } = await import('./desktop-scenario.js');
+    const r = await runDesktopScenario();
+    expect(r.gpa).toMatchObject({ nodeId: 'claude-desktop:gpa', name: 'GPA' });
+    expect(r.essay.nodeId).toBe('claude-desktop:essay');
+    expect(r.gpaPeers).toHaveLength(1);
+    expect(r.essayPeers).toEqual([]);
+    expect(r.unreadText).toBe(
+      'GPA chat has 1 unread — open that chat in Claude and say "check my switchyard inbox"',
+    );
+    expect(r.gpaInbox).toEqual([expect.objectContaining({ body: 'what grade?' })]);
+    expect(r.essayInbox).toEqual([]);
+    expect(r.reply).toMatchObject({ status: 'replied', body: 'B+', from: 'claude-desktop:gpa' });
+    expect(r.essayError).toMatch(/not_connected/);
+    expect(r.foreignAsError).toMatch(/unauthorized/);
+    expect(r.left).toEqual({ nodeId: 'claude-desktop:essay', left: true });
+    expect(r.chatNodes).toEqual([
+      { id: 'claude-desktop:gpa', title: 'GPA', left: false },
+      { id: 'claude-desktop:essay', title: 'Essay', left: true },
+    ]);
   }, 60_000);
 });
