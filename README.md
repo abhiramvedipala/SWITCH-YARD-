@@ -79,7 +79,8 @@ Other views and panels:
 ## Message-system tools agents get (MCP server `switchyard`)
 
 `list_peers`, `get_peer_context`, `message_peer` (intents `notify` / `request` /
-`response`), `check_inbox`, `wait_for_reply`, `publish_summary`, `list_tasks`,
+`response`), `check_inbox`, `wait_for_inbox` (block ≤ 55 s until a message
+arrives; loop it to stand by), `wait_for_reply`, `publish_summary`, `list_tasks`,
 `add_task`, `claim_task`, `complete_task`, `get_node_status`,
 `wait_for_nodes`, `ask_user`.
 

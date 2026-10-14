@@ -158,6 +158,12 @@ Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Nei
 4. **Pass:** Needs you shows "GPA chat has 1 unread — …". Back in the GPA chat type `check my switchyard inbox and answer it`; the agent receives the response.
 5. Paste back what the chat said at steps 2 and 4, and whether Claude Desktop asked you to approve each tool call.
 
+### Stand-by for Claude.app chats (2026-10-14)
+
+**What changed:** `POST /bus/wait_inbox` + bus-mcp `wait_for_inbox({timeoutSec ≤ 55, as})` (20 tools): a 55 s long-poll on the bus's message signal, not a push — a chat can't be woken, so it waits inside its own turn and loops the tool; the wait ends on client disconnect and marks nothing delivered then. Server instructions tell a chat asked to stand by to loop it and answer each request.
+**How to try it:** in a joined chat type `Stand by on Switchyard as GPA for 10 minutes and answer anything that arrives.` Tests: 6 vitest, e2e stand-by scenario (woke after ~300 ms).
+**Unverified:** Claude Desktop's per-tool-call timeout (whether a 55 s call is tolerated) and how many consecutive tool calls one turn allows (a 10-minute stand-by ≈ 11 calls).
+
 ### Usage: Claude cost on resumed turns (2026-10-14)
 
 **What changed:** Claude Code reports a session's running `total_cost_usd` on every resumed turn (docs: "summing results double-counts the restored spend"), and every driven turn resumes a session, so chat / run / room cost badges over-counted. `recordUsage` now bills the per-turn delta per session id (cursor = the session's last usage row; a lower total or a new session id bills the full figure), keeps the raw value in `usage.reported_cost_usd`, and migration 6 repairs existing rows (the owner's $8.45 room → $4.65; global Claude total $8.66 → $4.86). Token counts were already per turn. agy, codex and API harnesses report per turn and are unchanged.
@@ -346,7 +352,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-14 evening, master):** lint clean · 304 vitest · e2e 29 PASS lines · 63 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
+**Check inventory (2026-10-14 night, master):** lint clean · 310 vitest · e2e 30 PASS lines · 63 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 
