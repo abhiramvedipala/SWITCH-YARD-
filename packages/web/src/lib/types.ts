@@ -1,5 +1,5 @@
 export type NodeType =
-  'terminal' | 'agent-terminal' | 'agent-chat' | 'note' | 'doc' | 'browser' | 'external';
+  'terminal' | 'agent-terminal' | 'agent-chat' | 'note' | 'doc' | 'browser' | 'files' | 'external';
 export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'starting' | 'external';
 export type HarnessId =
   | 'claude'

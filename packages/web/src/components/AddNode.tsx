@@ -81,6 +81,7 @@ export const ADD_ITEMS: { label: string; hint: string; spec: AddSpec }[] = [
   })),
   { label: 'Note', hint: 'plain text', spec: { type: 'note' } },
   { label: 'Doc', hint: 'markdown', spec: { type: 'doc' } },
+  { label: 'Files', hint: 'browse and edit the workspace folder', spec: { type: 'files' } },
   {
     label: 'Browser preview',
     hint: 'localhost iframe',

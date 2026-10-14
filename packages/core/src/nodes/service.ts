@@ -18,6 +18,7 @@ export const DEFAULT_SIZE: Record<NodeType, [number, number]> = {
   note: [280, 220],
   doc: [460, 420],
   browser: [640, 460],
+  files: [720, 480],
   external: [260, 130],
 };
 
@@ -94,6 +95,13 @@ export class NodeService {
     if (cwd && harness && harness !== 'mock' && getHarness(harness).isAgent) {
       assertSafeCwd(cwd, input.allowOwnFolder);
     }
+    const data = { ...input.data };
+    if (type === 'files') {
+      // A Files block edits the workspace folder, so it gets the same own-folder confirmation as an agent.
+      // The confirmation is remembered on the node: PUT /api/fs/write checks it before writing.
+      assertSafeCwd(ws.rootDir, input.allowOwnFolder);
+      if (input.allowOwnFolder) data.allowOwnFolder = true;
+    }
     const [dw, dh] = DEFAULT_SIZE[type];
     const existing = this.store.listNodes(workspaceId).filter((n) => !n.data.project);
     const count = existing.length;
@@ -114,7 +122,7 @@ export class NodeService {
       state: PTY_TYPES.includes(type) ? 'starting' : 'idle',
       sessionRef: input.sessionRef ?? null,
       yolo: !!input.yolo,
-      data: input.data ?? {},
+      data,
       summary: '',
     });
     if (harness && getHarness(harness).isAgent) this.caps.issue(node.id, workspaceId, cwd);
@@ -231,6 +239,8 @@ function defaultTitle(
       return 'Doc';
     case 'browser':
       return 'Preview';
+    case 'files':
+      return 'Files';
     case 'external':
       return 'Claude Desktop';
   }

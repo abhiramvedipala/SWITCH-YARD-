@@ -1,7 +1,16 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, dirname, basename } from 'node:path';
+import { join, resolve, dirname, basename, extname, relative } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Core } from '../core.js';
@@ -27,7 +36,7 @@ import { drivableHarnesses, HUMAN_NAME } from '../rooms/service.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
 import { runCapture } from '../harness/util.js';
-import { scratchRoot, assertSafeCwd } from '../paths.js';
+import { scratchRoot, assertSafeCwd, inside } from '../paths.js';
 import {
   addAllowRules,
   removeAllowRules,
@@ -56,7 +65,27 @@ function fail(reply: FastifyReply, err: unknown) {
   return reply.code(400).send({ error: 'failed', message: String((err as Error).message ?? err) });
 }
 
-const NODE_TYPES = ['terminal', 'agent-terminal', 'agent-chat', 'note', 'doc', 'browser'] as const;
+const NODE_TYPES = [
+  'terminal',
+  'agent-terminal',
+  'agent-chat',
+  'note',
+  'doc',
+  'browser',
+  'files',
+] as const;
+
+/** Files block: the editor shows UTF-8 text up to this size; anything else is "size only". */
+const FS_MAX_FILE = 1024 * 1024;
+const FS_HIDDEN = new Set(['node_modules', '.git', 'dist']);
+const FS_IMAGE: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
 
 export const SETTINGS_DEFAULTS = {
   autoNudge: true,
@@ -286,6 +315,125 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       const { path } = z.object({ path: z.string().min(1) }).parse(req.body);
       mkdirSync(resolve(path), { recursive: true });
       return { path: resolve(path) };
+    }),
+  );
+
+  // ---------------------------------------------------------------- filesystem (Files block)
+  /**
+   * Resolve `path` (relative to the node's workspace folder, or absolute) to a real path inside that folder.
+   * The folder and the target are both realpath'd, so a symlink pointing out of the workspace is refused.
+   */
+  const fsTarget = (q: { nodeId?: string; path?: string }) => {
+    const node = store.getNode(q.nodeId ?? '');
+    if (!node || node.type !== 'files')
+      throw new BusError('unknown_node', 'unknown Files node', 404);
+    const root = realpathSync(store.getWorkspace(node.workspaceId)!.rootDir);
+    let real: string;
+    try {
+      real = realpathSync(resolve(root, q.path || '.'));
+    } catch {
+      throw new BusError('not_found', 'no such file or folder', 404);
+    }
+    if (!inside(real, root))
+      throw new BusError('outside_workspace', 'that path is outside the workspace folder', 403);
+    return { node, root, real, rel: relative(root, real) };
+  };
+  const fsQuery = (req: FastifyRequest) =>
+    req.query as { nodeId?: string; path?: string; dotfiles?: string };
+  const fsBody = (req: FastifyRequest) =>
+    z.object({ nodeId: z.string(), path: z.string() }).parse(req.body);
+  /** Writes stay on the computer itself, whatever the remoteReadOnly setting says. */
+  const fsLocalOnly = (req: FastifyRequest) => {
+    if (deps.isRemote(req))
+      throw new BusError('local_only', 'Files can only be changed on the computer itself.', 403);
+  };
+
+  /** One directory level; node_modules, .git and dist are always hidden, other dotfiles unless ?dotfiles=1. */
+  app.get(
+    '/api/fs/tree',
+    h((req) => {
+      const q = fsQuery(req);
+      const { real, rel } = fsTarget(q);
+      if (!statSync(real).isDirectory()) throw new Error('not a folder');
+      const entries = readdirSync(real, { withFileTypes: true })
+        .filter((e) => !FS_HIDDEN.has(e.name) && (q.dotfiles === '1' || !e.name.startsWith('.')))
+        .map((e) => ({
+          name: e.name,
+          dir:
+            e.isDirectory() ||
+            (e.isSymbolicLink() &&
+              !!statSync(join(real, e.name), { throwIfNoEntry: false })?.isDirectory()),
+        }))
+        .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))
+        .slice(0, 2000);
+      return { path: rel, entries };
+    }),
+  );
+  app.get(
+    '/api/fs/read',
+    h((req) => {
+      const { real, rel } = fsTarget(fsQuery(req));
+      const st = statSync(real);
+      if (!st.isFile()) throw new Error('not a file');
+      const base = { path: rel, size: st.size, mtime: st.mtimeMs };
+      if (st.size > FS_MAX_FILE) return { ...base, kind: 'binary' };
+      const buf = readFileSync(real);
+      const mime = FS_IMAGE[extname(real).toLowerCase()];
+      if (mime)
+        return { ...base, kind: 'image', dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
+      try {
+        return {
+          ...base,
+          kind: 'text',
+          text: new TextDecoder('utf-8', { fatal: true }).decode(buf),
+        };
+      } catch {
+        return { ...base, kind: 'binary' };
+      }
+    }),
+  );
+  /** Cheap poll for the open file: has it changed on disk? */
+  app.get(
+    '/api/fs/stat',
+    h((req) => {
+      const st = statSync(fsTarget(fsQuery(req)).real);
+      return { mtime: st.mtimeMs, size: st.size };
+    }),
+  );
+  app.put(
+    '/api/fs/write',
+    { bodyLimit: 4 * FS_MAX_FILE },
+    h((req) => {
+      fsLocalOnly(req);
+      const b = z
+        .object({
+          nodeId: z.string(),
+          path: z.string(),
+          text: z.string().max(FS_MAX_FILE),
+          expectedMtime: z.number(),
+        })
+        .parse(req.body);
+      const { node, root, real } = fsTarget(b);
+      // Never write inside the app's own repo or ~/.switchyard unless this node was added with that confirmation.
+      assertSafeCwd(root, node.data.allowOwnFolder === true);
+      const st = statSync(real);
+      if (!st.isFile()) throw new Error('not a file');
+      if (st.mtimeMs !== b.expectedMtime)
+        throw new BusError(
+          'stale',
+          'This file changed on disk since you opened it. Reload it, then save again.',
+          409,
+        );
+      writeFileSync(real, b.text);
+      return { mtime: statSync(real).mtimeMs };
+    }),
+  );
+  app.post(
+    '/api/fs/reveal',
+    h((req) => {
+      fsLocalOnly(req);
+      if (process.platform !== 'darwin') throw new Error('Reveal in Finder is macOS only');
+      execFile('open', ['-R', fsTarget(fsBody(req)).real]);
     }),
   );
 
