@@ -113,6 +113,8 @@ const toTask = (r: TaskRow): TaskRec => ({
 const MAX_BODY = 64 * 1024;
 export const USER_NODE = 'user';
 const MAX_WAIT_MS = 600_000;
+/** One wait_inbox request stays under fetch's header timeout; bus-mcp loops for longer stand-bys. */
+const MAX_INBOX_WAIT_MS = 55_000;
 
 export class Bus {
   /** Internal wakeups for long-polls; never leaves the process. */
@@ -349,12 +351,36 @@ export class Bus {
     return got ?? { status: 'timeout' as const, messageId };
   }
 
+  /**
+   * Long-poll check_inbox: resolves with the inbox (marked delivered, as check_inbox does) as soon as it is
+   * non-empty, else `{messages: [], timedOut: true}` after timeoutMs (capped at 55 s). `gone` is the client
+   * leaving: the wait ends at once and nothing is marked delivered, so the messages wait for the next call.
+   */
+  async waitForInbox(self: string, timeoutMs: number, gone?: AbortSignal) {
+    this.requireNode(self);
+    const check = () => {
+      const msgs = this.checkInbox(self);
+      return msgs.length > 0 ? msgs : null;
+    };
+    const msgs = await this.waitFor(
+      check,
+      'message',
+      (target) => target === self,
+      Math.min(Math.max(0, timeoutMs), MAX_INBOX_WAIT_MS),
+      gone,
+    );
+    return { messages: msgs ?? [], timedOut: msgs === null };
+  }
+
   private waitFor<T>(
     check: () => T | null,
     signal: string,
     filter: (arg: unknown) => boolean,
     timeoutMs: number,
+    gone?: AbortSignal,
   ): Promise<T | null> {
+    // A client that already left gets nothing; check() must not run for it (it may have side effects).
+    if (gone?.aborted) return Promise.resolve(null);
     const first = check();
     if (first !== null || timeoutMs <= 0) return Promise.resolve(first);
     return new Promise((resolve) => {
@@ -364,12 +390,15 @@ export class Bus {
         if (v !== null) done(v);
       };
       const timer = setTimeout(() => done(check()), timeoutMs);
+      const onGone = () => done(null);
       const done = (v: T | null) => {
         clearTimeout(timer);
         this.signals.off(signal, onSignal);
+        gone?.removeEventListener('abort', onGone);
         resolve(v);
       };
       this.signals.on(signal, onSignal);
+      gone?.addEventListener('abort', onGone, { once: true });
     });
   }
 

@@ -89,10 +89,10 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
   });
 
   const wrap =
-    (fn: (req: FastifyRequest, self: string) => unknown) =>
+    (fn: (req: FastifyRequest, self: string, reply: FastifyReply) => unknown) =>
     async (req: FastifyRequest, reply: FastifyReply) => {
       try {
-        return reply.send(await fn(req, req.busNode!));
+        return reply.send(await fn(req, req.busNode!, reply));
       } catch (err) {
         return fail(reply, err);
       }
@@ -140,6 +140,18 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
     wrap((req, self) => {
       const { markRead } = z.object({ markRead: z.boolean().optional() }).parse(req.body ?? {});
       return { messages: bus.checkInbox(self, markRead ?? true) };
+    }),
+  );
+  app.post(
+    '/bus/wait_inbox',
+    wrap((req, self, reply) => {
+      const { timeoutMs } = z
+        .object({ timeoutMs: z.number().int().min(0).optional() })
+        .parse(req.body ?? {});
+      // The wait ends with the client (as the attention long-poll does): a chat that hung up keeps its messages.
+      const gone = new AbortController();
+      reply.raw.once('close', () => gone.abort());
+      return bus.waitForInbox(self, timeoutMs ?? 55_000, gone.signal);
     }),
   );
   app.post(

@@ -34,7 +34,9 @@ function errorText(err: unknown) {
 export function buildServer(getClient: () => BusClient): McpServer {
   const server = new McpServer(
     { name: 'switchyard', version: '0.1.0' },
-    { instructions: `Switchyard: the canvas bus between coding agents. ${CHAT_RULE}` },
+    {
+      instructions: `Switchyard: the canvas bus between coding agents. ${CHAT_RULE} A Claude Desktop chat asked to stand by should loop wait_for_inbox and answer each request, then stop at the user's time limit.`,
+    },
   );
   // Every tool takes an optional `as`: a Claude Desktop chat's name, so one shared process can act per chat.
   const tool = <S extends z.ZodRawShape>(
@@ -107,6 +109,12 @@ export function buildServer(getClient: () => BusClient): McpServer {
     'Fetch your undelivered messages, oldest first, with intent, sender and responseTo. Messages with needsReply=true are requests you should answer via message_peer(intent="response"). Claude Desktop chats: call this (with as:<name>) when the user asks what the agents said.',
     { markRead: z.boolean().optional().describe('default true') },
     (a, c) => c.call('POST', '/bus/inbox', { markRead: a.markRead ?? true }),
+  );
+  tool(
+    'wait_for_inbox',
+    "Block until a message arrives in your inbox or the timeout (≤55 s) passes; returns the messages like check_inbox. To stand by for longer, call it again in a loop until the user's time limit; answer requests with message_peer(intent='response', responseTo=…).",
+    { timeoutSec: z.number().int().min(1).max(55).optional().describe('default 55, max 55') },
+    (a, c) => c.call('POST', '/bus/wait_inbox', { timeoutMs: (a.timeoutSec ?? 55) * 1000 }),
   );
   tool(
     'wait_for_reply',
