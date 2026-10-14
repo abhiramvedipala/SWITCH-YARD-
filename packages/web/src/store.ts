@@ -189,9 +189,11 @@ export function harnessLabel(h: string | null | undefined): string {
     ? 'Claude Code'
     : h === 'agy'
       ? 'Antigravity'
-      : h === 'mock'
-        ? 'Mock'
-        : h === 'shell'
-          ? 'Shell'
-          : (h ?? '');
+      : h === 'codex'
+        ? 'Codex (ChatGPT)'
+        : h === 'mock'
+          ? 'Mock'
+          : h === 'shell'
+            ? 'Shell'
+            : (h ?? '');
 }

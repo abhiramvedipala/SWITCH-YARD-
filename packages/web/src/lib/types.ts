@@ -1,6 +1,6 @@
 export type NodeType = 'terminal' | 'agent-terminal' | 'agent-chat' | 'note' | 'doc' | 'browser';
 export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'starting';
-export type HarnessId = 'claude' | 'agy' | 'shell' | 'mock';
+export type HarnessId = 'claude' | 'agy' | 'codex' | 'shell' | 'mock';
 
 export interface Workspace {
   id: string;
