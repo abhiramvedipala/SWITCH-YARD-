@@ -166,5 +166,12 @@ export function NodeBody({ node, primary = true }: { node: SNode; primary?: bool
       return <DocBody node={node} />;
     case 'browser':
       return <BrowserBody node={node} />;
+    case 'external':
+      return (
+        <div className="muted small pad">
+          Chats in Claude Desktop use this node's identity. Connect it to the agents they may talk
+          to. Set up in Settings.
+        </div>
+      );
   }
 }
