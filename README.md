@@ -118,6 +118,19 @@ Then **+ Add → Claude / OpenAI / Gemini API chat**. Chat only (no tools, no
 files), billed per token to your account, and the only part of Switchyard that
 goes online.
 
+**Other CLI agent:** + Add → "Other CLI agent…": Aider, Goose, OpenCode,
+GitHub Copilot CLI, Cursor CLI or any command you type, in a terminal node with
+the bus identity. Bus tools attach per process where the tool documents a flag
+for it (Goose, OpenCode); Aider, Copilot and Cursor get none and Switchyard
+never edits their config files. No permission-bypass flag is ever passed.
+Settings → Agents shows which of them are installed.
+
+**Continue in…** (Import sessions) hands a Claude Code session, an agy
+conversation or an exported chat to another harness: Switchyard writes
+`HANDOFF-<slug>.md` (the newest turns, up to 24k characters) into the target
+workspace folder and starts a terminal agent with "Read HANDOFF-<slug>.md
+first…", or a chat node with the document as its first message. Local only.
+
 **Codex (ChatGPT):** install with `npm install -g @openai/codex` (or
 `brew install --cask codex`), run `codex login` and choose _Sign in with
 ChatGPT_. Then **+ Add → Codex agent** (terminal) or **Codex chat** (driven).

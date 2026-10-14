@@ -161,8 +161,8 @@ Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Nei
 ### October parity (started 2026-10-14)
 
 - [x] **Files block** — `files` node type: lazy tree of the workspace folder (hides `node_modules`, `.git`, `dist`, dotfiles toggle) next to a plain editor with line numbers, ⌘S, markdown preview, inline images; `/api/fs/{tree,read,stat,write,reveal}` with realpath-inside-root checks (symlink escapes 403), 409 on a stale mtime, 1 MB cap, local-only writes, own-folder confirmation carried on the node (`data.allowOwnFolder`); the open file is polled every 2 s. 13 vitest + 3 ui-checks (57 total).
-- [ ] **Other CLI agent** presets (Aider, Goose, OpenCode, Copilot CLI, Cursor CLI, custom command) — in flight.
-- [ ] **Continue in…** session hand-off between harnesses — in flight.
+- [x] **Other CLI agent** (2026-10-14) — `custom` harness with presets aider, goose, opencode, copilot (GitHub Copilot CLI), cursor (Cursor CLI `agent`) and `other` (any command): facts from each tool's official docs; bus tools attach per process only where documented (Goose `--with-extension`, OpenCode `OPENCODE_CONFIG_CONTENT`), Aider / Copilot / Cursor launch without them and Switchyard never edits their config; **no bypass flag is ever passed, `node.yolo` is ignored**; presets with a documented one-shot mode can be stateless chat nodes; kept out of rooms and runs (`perNodeConfig`); Settings → Agents shows preset install state. 9 vitest + 2 ui-checks. **Prompt patterns and every preset are unverified against the real tools** (none installed).
+- [x] **Continue in…** (2026-10-14, October's Moirai idea, local) — `sessions/handoff.ts` turns a Claude Code session, an agy conversation or an exported chat into one transcript model and renders `HANDOFF-<slug>.md` (newest turns within 24k chars, tool calls one line each) into the target workspace folder; `POST /api/workspaces/:id/handoff` starts a terminal agent with "Read HANDOFF-<slug>.md first…" as its first prompt (claude positional prompt, agy `-i`, codex positional, mock `--prompt`) or a chat node with the document; refuses phone sessions and the app's own folder before writing. 14 vitest + 2 ui-checks. Mock verified end to end; **real agents unverified**.
 - Out of scope by rule: cloud, teams/multiplayer, remote servers, Windows/Linux builds, Themes API.
 
 ## Acceptance (real agents; one OWNER CHECK at a time, fresh `~/.switchyard/scratch` workspace each)
@@ -323,7 +323,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-14, master):** lint clean · 271 vitest · e2e 24 PASS lines · 57 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~39 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
+**Check inventory (2026-10-14 evening, master):** lint clean · 294 vitest · e2e 24 PASS lines · 61 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 
