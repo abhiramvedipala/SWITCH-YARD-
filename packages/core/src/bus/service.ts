@@ -555,7 +555,8 @@ export class Bus {
         nodeId: id,
         state: this.store.getNode(id)?.state ?? 'exited',
       }));
-      return states.every((s) => s.state === 'idle' || s.state === 'exited') ? states : null;
+      // An external node (Claude Desktop) never reports work, so waiting on it would only time out.
+      return states.every((s) => ['idle', 'exited', 'external'].includes(s.state)) ? states : null;
     };
     const timeoutMs = Math.min(Math.max(0, timeoutSec) * 1000, MAX_WAIT_MS);
     const res = await this.waitFor(
