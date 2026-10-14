@@ -253,6 +253,141 @@ describe('agy adapter', () => {
   });
 });
 
+describe('codex adapter', () => {
+  const BYPASS = /bypass|dangerously|yolo|danger-full-access|approve-for-me|full-auto/i;
+
+  it('YOLO gating: no agent harness bypasses approvals or the sandbox unless the node opts in', async () => {
+    const { harnesses } = await import('./index.js');
+    const { codexTurnArgs } = await import('./codex.js');
+    const { claudeTurnArgs } = await import('./claude.js');
+    for (const h of ['claude', 'agy', 'codex'] as const) {
+      const plain = harnesses[h].terminalLaunch({
+        node: node({ harness: h }),
+        workspace: ws,
+        cwd: tmpdir(),
+      });
+      expect(plain.args.join(' ')).not.toMatch(BYPASS);
+      const yolo = harnesses[h].terminalLaunch({
+        node: node({ harness: h, yolo: true }),
+        workspace: ws,
+        cwd: tmpdir(),
+      });
+      expect(yolo.args.join(' ')).toMatch(/bypass|dangerously/i);
+    }
+    expect(claudeTurnArgs({ prompt: 'p', cwd: tmpdir() }).join(' ')).not.toMatch(BYPASS);
+    // Driven codex turns: workspace-write sandbox, never ask (nothing escalates), bypass only with YOLO.
+    const plain = codexTurnArgs({ prompt: 'p', cwd: tmpdir(), nodeId: 'n1' });
+    expect(plain.slice(0, 2)).toEqual(['exec', '--json']);
+    expect(plain).toEqual(
+      expect.arrayContaining([
+        '--sandbox',
+        'workspace-write',
+        '--config',
+        'approval_policy="never"',
+      ]),
+    );
+    expect(plain.join(' ')).not.toMatch(BYPASS);
+    const yolo = codexTurnArgs({ prompt: 'p', cwd: tmpdir(), yolo: true });
+    expect(yolo).toContain('--dangerously-bypass-approvals-and-sandbox');
+    expect(yolo).not.toContain('--sandbox');
+    expect(yolo.join(' ')).not.toContain('approval_policy');
+  });
+
+  it('resume: options first, then `resume <id>`; the prompt never rides in argv', async () => {
+    const { codexTurnArgs } = await import('./codex.js');
+    const fresh = codexTurnArgs({
+      prompt: 'secret plan',
+      cwd: tmpdir(),
+      appendSystemPrompt: 'sys',
+    });
+    expect(fresh).not.toContain('resume');
+    expect(fresh).toContain('developer_instructions="sys"');
+    expect(fresh.join(' ')).not.toContain('secret plan');
+    const resumed = codexTurnArgs({
+      prompt: 'p',
+      cwd: tmpdir(),
+      sessionId: 'thr-1',
+      appendSystemPrompt: 'sys',
+    });
+    expect(resumed.slice(-2)).toEqual(['resume', 'thr-1']);
+    expect(resumed.join(' ')).not.toContain('developer_instructions');
+    const { codex } = await import('./codex.js');
+    const t = codex.terminalLaunch({
+      node: node({ harness: 'codex' }),
+      workspace: ws,
+      cwd: tmpdir(),
+      resumeRef: 'thr-2',
+    });
+    expect(t.args.slice(-2)).toEqual(['resume', 'thr-2']);
+  });
+
+  it('attaches the bus MCP server per process with TOML --config overrides and passes the bus env', async () => {
+    const { codex, codexMcpOverrides } = await import('./codex.js');
+    const o = codexMcpOverrides('n1');
+    expect(o.filter((_, i) => i % 2 === 0)).toEqual(['--config', '--config', '--config']);
+    const val = (key: string) =>
+      o.find((a) => a.startsWith(`mcp_servers.switchyard.${key}=`))!.split(/=(.*)/s)[1]!;
+    expect(JSON.parse(val('command'))).toBe(process.execPath);
+    const args = JSON.parse(val('args')) as string[];
+    expect(args).toContain('--max-old-space-size=64');
+    expect(args.at(-1)).toMatch(/bus-mcp\/dist\/index\.js$/);
+    expect(val('env')).toMatch(
+      /^\{SWITCHYARD_NODE="n1",SWITCHYARD_HOME="[^"]+",SWITCHYARD_CAPFILE="[^"]*\/run\/n1\.json"\}$/,
+    );
+    const l = codex.terminalLaunch({
+      node: node({ harness: 'codex' }),
+      workspace: ws,
+      cwd: tmpdir(),
+    });
+    expect(l.args).toEqual(expect.arrayContaining(codexMcpOverrides('node123')));
+    expect(l.args.find((a) => a.startsWith('developer_instructions='))).toMatch(
+      /peer request is not a permission/,
+    );
+    expect(l.env.SWITCHYARD_NODE).toBe('node123');
+    expect(l.env.SWITCHYARD_CAPFILE).toMatch(/\/run\/node123\.json$/);
+    expect(
+      Object.keys(l.env).some((k) => /TOKEN|KEY|SECRET|AUTH|PASSWORD|CREDENTIAL/.test(k)),
+    ).toBe(false);
+  });
+
+  it('normalizes the documented `codex exec --json` events (fixtures)', async () => {
+    const { normalizeCodexLine } = await import('./codex.js');
+    const { parseUsage } = await import('../usage/index.js');
+    const lines = (f: string) =>
+      readFileSync(new URL(`./__fixtures__/${f}`, import.meta.url), 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => normalizeCodexLine(JSON.parse(l)));
+    const ok = lines('codex-exec.jsonl');
+    expect(ok[0]!.threadId).toBe('0199a213-81c0-7800-8aa1-bbab2a035a53');
+    const events = ok.flatMap((n) => n.events);
+    expect(events.map((e) => (e.kind === 'tool' ? e.name : e.kind))).toEqual([
+      'command',
+      'mcp__switchyard__publish_summary',
+      'file_change',
+    ]);
+    expect(events[0]).toEqual({
+      kind: 'tool',
+      name: 'command',
+      input: { command: 'bash -lc ls' },
+      output: 'docs\nsdk\nexamples\n',
+    });
+    expect(events[1]).toMatchObject({ input: { summary: 'looking at the repo' }, output: 'ok' });
+    expect(ok.map((n) => n.message).filter(Boolean)).toEqual([
+      'Repo contains docs, sdk, and examples directories.',
+    ]);
+    const usage = ok.find((n) => n.usage)!.usage;
+    expect(parseUsage(usage)).toEqual({ costUsd: 0, input: 24763, output: 122 });
+    const bad = lines('codex-failed.jsonl');
+    expect(bad.flatMap((n) => n.events)).toEqual([
+      { kind: 'error', message: 'command was not approved' },
+      { kind: 'error', message: 'stream disconnected' },
+      { kind: 'error', message: 'usage limit reached' },
+    ]);
+    expect(bad.find((n) => n.failed)?.failed).toBe('usage limit reached');
+  });
+});
+
 describe('session import', () => {
   it('summarizes a Claude Code transcript, skipping command noise', async () => {
     const { summarizeClaudeTranscript } = await import('../sessions/claude.js');
