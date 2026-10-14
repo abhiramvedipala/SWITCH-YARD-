@@ -33,7 +33,23 @@ export function parseUsage(raw: unknown): { costUsd: number; input: number; outp
   };
 }
 
-/** One row per finished turn. Cheap: a single insert, no polling. */
+/**
+ * Claude Code's `total_cost_usd` is the session's running total: a `--resume`d turn "reports the conversation's
+ * whole total, earlier runs' spend included" (docs/headless). Token counts in `usage` stay per turn. So a Claude
+ * row stores the raw figure in reported_cost_usd and bills only the delta since the session's last row; the first
+ * row of a session (or one that drops below the previous total: a fresh session) bills the full figure.
+ * The last usage row of a session is the cursor, so no cursor table.
+ */
+function claudeTurnCost(db: Db, sessionId: string, reported: number): number {
+  const prev = db
+    .prepare(
+      'SELECT reported_cost_usd prev FROM usage WHERE session_id = ? ORDER BY id DESC LIMIT 1',
+    )
+    .get(sessionId) as { prev: number | null } | undefined;
+  return prev?.prev != null && reported >= prev.prev ? reported - prev.prev : reported;
+}
+
+/** One row per finished turn. Cheap: a single insert (plus one indexed lookup for Claude), no polling. */
 export function recordUsage(
   db: Db,
   ctx: {
@@ -44,11 +60,14 @@ export function recordUsage(
     roomId?: string | null;
     participantId?: string | null;
   },
-  res: Pick<TurnResult, 'usage'>,
+  res: Pick<TurnResult, 'usage'> & { sessionId?: string | null },
 ): void {
-  const { costUsd, input, output } = parseUsage(res.usage);
+  const { costUsd: reported, input, output } = parseUsage(res.usage);
+  const sessionId = res.sessionId ?? null;
+  const costUsd =
+    ctx.harness === 'claude' && sessionId ? claudeTurnCost(db, sessionId, reported) : reported;
   db.prepare(
-    'INSERT INTO usage (ts, harness, node_id, run_id, step_id, room_id, participant_id, cost_usd, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO usage (ts, harness, node_id, run_id, step_id, room_id, participant_id, session_id, cost_usd, reported_cost_usd, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
   ).run(
     Date.now(),
     ctx.harness,
@@ -57,10 +76,42 @@ export function recordUsage(
     ctx.stepId ?? null,
     ctx.roomId ?? null,
     ctx.participantId ?? null,
+    sessionId,
     costUsd,
+    reported,
     input,
     output,
   );
+}
+
+/**
+ * Recompute cost_usd for Claude rows from reported_cost_usd (the raw per-turn figure), per session in id order,
+ * with the same rule recordUsage applies live. Idempotent: reported_cost_usd is only filled where it is NULL
+ * (rows written before the column existed, whose cost_usd was the raw figure), and session_id only where NULL,
+ * from the owner's current session; rows without a known session group by their owner (node, participant,
+ * step, run) instead, and a total that drops below the previous one still starts a fresh session.
+ */
+export const USAGE_REPAIR_SQL = `
+  UPDATE usage SET reported_cost_usd = cost_usd WHERE reported_cost_usd IS NULL;
+  UPDATE usage SET session_id = (SELECT session_ref FROM nodes WHERE nodes.id = usage.node_id)
+    WHERE session_id IS NULL AND node_id IS NOT NULL;
+  UPDATE usage SET session_id = (SELECT session_ref FROM room_participants WHERE room_participants.id = usage.participant_id)
+    WHERE session_id IS NULL AND participant_id IS NOT NULL;
+  UPDATE usage SET session_id = (SELECT session_ref FROM run_steps WHERE run_steps.id = usage.step_id)
+    WHERE session_id IS NULL AND step_id IS NOT NULL;
+  UPDATE usage SET cost_usd = CASE WHEN p.prev IS NULL OR p.cur < p.prev THEN p.cur ELSE p.cur - p.prev END
+    FROM (
+      SELECT id, reported_cost_usd cur,
+        LAG(reported_cost_usd) OVER (
+          PARTITION BY COALESCE(session_id, node_id, participant_id, step_id, run_id, '') ORDER BY id
+        ) prev
+      FROM usage WHERE harness = 'claude'
+    ) p
+    WHERE usage.id = p.id;
+`;
+
+export function repairClaudeUsage(db: Db): void {
+  db.exec(USAGE_REPAIR_SQL);
 }
 
 const SUMS =
