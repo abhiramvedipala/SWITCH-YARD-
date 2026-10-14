@@ -143,6 +143,21 @@ Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversa
 
 Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
 
+### Claude.app chats as individual nodes (2026-10-14)
+
+**What changed:** over the one Claude Desktop connector, each chat names itself: `join_switchyard(name)` creates a `claude-desktop:<slug>` node (type `external`, 💬 badge, no capability or run file of its own); every bus and room tool takes `as:<name>`, honoured only when the verified caller is the base `claude-desktop` capability (anyone else gets the shared 401; base + unknown name → 404 "call join_switchyard first"); `leave_switchyard` marks it left, Delete removes it; connector Remove or a workspace move deletes chat nodes. A chat can't be woken, so Needs you shows `<name> chat has N unread — open that chat in Claude and say "check my switchyard inbox"` with no nudge. Server instructions tell the model to join first and pass `as:` afterwards. 19 bus tools.
+**How to try it:** OWNER CHECK CD2 below. Tests: 5 vitest, e2e two-chat scenario with a real bus-mcp, 2 ui-checks (63 in Chromium and WebKit).
+**Known and documented, not enforced:** any chat in the same Claude Desktop can claim any name (same user, same app, same trust boundary as the connector).
+**Unverified:** whether a real Claude Desktop reliably calls `join_switchyard` on "Join Switchyard as X" and keeps passing `as:` later; its tool-call timeout vs the 55 s long polls.
+
+### OWNER CHECK CD2 — an individual Claude.app chat on the canvas
+
+1. OWNER CHECK CD first (Connect, restart Claude Desktop).
+2. Open the chat you want (e.g. "GPA - classes management") and type: `Join Switchyard as GPA`. **Pass:** the chat reports it joined; a 💬 **GPA** node appears on the connected workspace's canvas.
+3. Draw an edge from GPA to a Claude Code (or Mock) agent. In the agent, type: `Send the GPA peer a request asking which week we are on.`
+4. **Pass:** Needs you shows "GPA chat has 1 unread — …". Back in the GPA chat type `check my switchyard inbox and answer it`; the agent receives the response.
+5. Paste back what the chat said at steps 2 and 4, and whether Claude Desktop asked you to approve each tool call.
+
 ### Usage: Claude cost on resumed turns (2026-10-14)
 
 **What changed:** Claude Code reports a session's running `total_cost_usd` on every resumed turn (docs: "summing results double-counts the restored spend"), and every driven turn resumes a session, so chat / run / room cost badges over-counted. `recordUsage` now bills the per-turn delta per session id (cursor = the session's last usage row; a lower total or a new session id bills the full figure), keeps the raw value in `usage.reported_cost_usd`, and migration 6 repairs existing rows (the owner's $8.45 room → $4.65; global Claude total $8.66 → $4.86). Token counts were already per turn. agy, codex and API harnesses report per turn and are unchanged.
@@ -329,7 +344,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 - [~] **F11** background-session spike: findings from `claude --help` recorded below (zero quota); the two live turns are an optional OWNER CHECK
 - [x] **F12** polish: opt-in macOS notifications for new needs-you items (`macNotifications`, default off, local-only, one banner per item, at most 1 per 2 s); `npm run dev` is Vite HMR on 127.0.0.1:5173 proxying to core, `npm run dev:build` is the old watch build; main web chunk 371 kB. Real banner on screen → owner check (allow notifications for Script Editor if none appear).
 
-**Check inventory (2026-10-14 evening, master):** lint clean · 298 vitest · e2e 24 PASS lines · 61 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
+**Check inventory (2026-10-14 evening, master):** lint clean · 304 vitest · e2e 29 PASS lines · 63 ui-checks in Chromium and WebKit (`npm run test:ui:webkit`) · selftest footprint ~40 MB · `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` 20. `npm run test:all` runs the core set in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
 

@@ -145,6 +145,13 @@ Bus tools are attached per process; Switchyard never writes `~/.codex`.
 first) and puts a Claude Desktop node on that canvas. Connect it to agents with
 edges, restart Claude Desktop, then ask a chat `list my switchyard peers`.
 **Remove** undoes both.
+Each Claude chat can be its own node: in the chat say `Join Switchyard as
+<name>`; it appears on the canvas with a 💬 badge and you connect it to agents
+with edges like any node. What agents send it waits in its inbox and shows
+under Needs you (`<name> chat has N unread — open that chat in Claude and say
+"check my switchyard inbox"`); a chat cannot be woken from outside. A list of
+your Claude chats inside Switchyard is not possible: claude.ai offers no API
+for it, and Switchyard never reads the app's local data.
 
 ## Phone access (Tailscale)
 
