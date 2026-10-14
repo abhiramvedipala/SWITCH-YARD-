@@ -18,6 +18,27 @@ import { closeAgySessions } from './harness/agy.js';
 const HOST = '127.0.0.1'; // never 0.0.0.0 — hard safety rule #3
 
 /**
+ * A Claude Code session exports markers to everything it starts (CLAUDE_CODE_CHILD_SESSION, its entrypoint, host
+ * session id, messaging socket/token, effort). When Switchyard itself is started from inside one (a terminal in
+ * Claude Code, or an app opened by it), every agent we spawn would inherit them: each `claude` would think it is
+ * that session's child, run at its effort and see its connectors and messaging token. Drop them once at boot so no
+ * child (PTY, driven turn, MCP helper) gets them. User config families (CLAUDE_CODE_USE_*, _MAX_*, _DISABLE_*) stay.
+ */
+export function scrubHostSessionEnv(env: NodeJS.ProcessEnv): string[] {
+  const keep = /^CLAUDE_CODE_(USE|MAX|DISABLE)_/;
+  const drop = Object.keys(env).filter(
+    (k) =>
+      (k.startsWith('CLAUDE_CODE_') && !keep.test(k)) ||
+      k.startsWith('CLAUDE_AGENT_SDK_') ||
+      k.startsWith('CLAUDE_PREVIEW_') ||
+      k === 'CLAUDE_PID' ||
+      k === 'CLAUDE_EFFORT',
+  );
+  for (const k of drop) delete env[k];
+  return drop;
+}
+
+/**
  * Anything that didn't come straight from this machine's loopback is "remote" (e.g. a phone via `tailscale serve`,
  * which proxies to 127.0.0.1 but adds forwarding headers / a non-loopback Host).
  */
@@ -164,6 +185,11 @@ export async function buildServer(
 }
 
 async function main() {
+  const dropped = scrubHostSessionEnv(process.env);
+  if (dropped.length)
+    console.log(
+      `ignoring ${dropped.length} inherited Claude Code session variables (started from inside a session)`,
+    );
   const { app, core, port } = await buildServer();
   core.monitor.startLoop();
   core.notifier.start();
