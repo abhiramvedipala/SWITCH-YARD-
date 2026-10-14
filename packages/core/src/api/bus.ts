@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Core } from '../core.js';
 import { BusError } from '../bus/service.js';
+import { DESKTOP_NODE, chatNode, joinChat, leaveChat } from '../harness/claude-desktop.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -59,6 +60,20 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
       return reply.code(401).send(UNAUTHORIZED);
     }
     req.busNode = nodeId;
+    // A Claude Desktop chat acts as its own sub-node (join_switchyard). Only the base identity may wear one;
+    // anyone else naming a chat gets the same answer as a bad capability.
+    const as = req.headers['x-switchyard-as'];
+    if (as !== undefined) {
+      if (nodeId !== DESKTOP_NODE || typeof as !== 'string')
+        return reply.code(401).send(UNAUTHORIZED);
+      const chat = chatNode(core, as);
+      if (!chat)
+        return reply.code(404).send({
+          error: 'unknown_chat',
+          message: `no chat named "${as}" on this canvas; call join_switchyard first`,
+        });
+      req.busNode = chat.id;
+    }
   });
 
   app.post('/bus/hook/claude/:nodeId/:secret', async (req, reply) => {
@@ -83,6 +98,24 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
       }
     };
 
+  // Claude Desktop chats: the base identity makes one node per chat, then acts as it via the `as` header.
+  const chatName = (req: FastifyRequest, self: string) => {
+    if (self !== DESKTOP_NODE)
+      throw new BusError(
+        'not_claude_desktop',
+        'only Claude Desktop chats join; agents started from the canvas already have a node',
+        403,
+      );
+    return z.object({ name: z.string().trim().min(1).max(60) }).parse(req.body).name;
+  };
+  app.post(
+    '/bus/join',
+    wrap((req, self) => joinChat(core, chatName(req, self))),
+  );
+  app.post(
+    '/bus/leave',
+    wrap((req, self) => leaveChat(core, chatName(req, self))),
+  );
   app.get(
     '/bus/whoami',
     wrap((_req, self) => {

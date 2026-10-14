@@ -2,10 +2,18 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { BusClient, BusHttpError, resolveNodeId } from './client.js';
+import { BusClient, BusHttpError, resolveNodeId, type BusCaller } from './client.js';
 
 const NOT_ON_CANVAS =
   'This process is not attached to a Switchyard node (no usable SWITCHYARD_CAPFILE, no SWITCHYARD_NODE and no identity file for this folder). Start the agent from a Switchyard canvas to use these tools.';
+const CHAT_RULE =
+  'If you are a Claude Desktop chat, first call join_switchyard with a short name for this chat, then pass as:<name> in every call; check_inbox when the user asks what the agents said.';
+const AS = z
+  .string()
+  .optional()
+  .describe(
+    'Claude Desktop chats only: the name this chat joined with (join_switchyard). Agents started from the canvas omit it.',
+  );
 
 function text(obj: unknown) {
   return {
@@ -24,24 +32,41 @@ function errorText(err: unknown) {
 }
 
 export function buildServer(getClient: () => BusClient): McpServer {
-  const server = new McpServer({ name: 'switchyard', version: '0.1.0' });
+  const server = new McpServer(
+    { name: 'switchyard', version: '0.1.0' },
+    { instructions: `Switchyard: the canvas bus between coding agents. ${CHAT_RULE}` },
+  );
+  // Every tool takes an optional `as`: a Claude Desktop chat's name, so one shared process can act per chat.
   const tool = <S extends z.ZodRawShape>(
     name: string,
     description: string,
     shape: S,
-    run: (args: z.infer<z.ZodObject<S>>, c: BusClient) => Promise<unknown>,
+    run: (args: z.infer<z.ZodObject<S>>, c: BusCaller) => Promise<unknown>,
   ) => {
-    server.registerTool(name, { description, inputSchema: shape }, (async (
-      args: z.infer<z.ZodObject<S>>,
-    ) => {
+    server.registerTool(name, { description, inputSchema: { ...shape, as: AS } }, (async ({
+      as,
+      ...args
+    }: z.infer<z.ZodObject<S>> & { as?: string }) => {
       try {
-        return text(await run(args, getClient()));
+        return text(await run(args as z.infer<z.ZodObject<S>>, getClient().as(as)));
       } catch (err) {
         return errorText(err);
       }
     }) as never);
   };
 
+  tool(
+    'join_switchyard',
+    `${CHAT_RULE} Creates (or reuses) this chat's own node on the canvas; the human connects it to agents with edges. Returns nodeId, the name to pass as \`as\`, and your current peers.`,
+    { name: z.string().trim().min(1).max(60).describe('short name for this chat, e.g. the topic') },
+    (a) => getClient().call('POST', '/bus/join', { name: a.name }),
+  );
+  tool(
+    'leave_switchyard',
+    'Claude Desktop chats only: mark this chat as left. Its node stays on the canvas until the human deletes it.',
+    { name: z.string().trim().min(1).max(60) },
+    (a) => getClient().call('POST', '/bus/leave', { name: a.name }),
+  );
   tool(
     'whoami',
     'Your own identity on the Switchyard canvas: nodeId, title, workspaceId, harness.',
@@ -79,7 +104,7 @@ export function buildServer(getClient: () => BusClient): McpServer {
   );
   tool(
     'check_inbox',
-    'Fetch your undelivered messages, oldest first, with intent, sender and responseTo. Messages with needsReply=true are requests you should answer via message_peer(intent="response").',
+    'Fetch your undelivered messages, oldest first, with intent, sender and responseTo. Messages with needsReply=true are requests you should answer via message_peer(intent="response"). Claude Desktop chats: call this (with as:<name>) when the user asks what the agents said.',
     { markRead: z.boolean().optional().describe('default true') },
     (a, c) => c.call('POST', '/bus/inbox', { markRead: a.markRead ?? true }),
   );

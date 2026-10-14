@@ -208,7 +208,12 @@ export function NodeBody({ node, primary = true }: { node: SNode; primary?: bool
     case 'files':
       return <FilesBody node={node} />;
     case 'external':
-      return (
+      return node.data.kind === 'chat' ? (
+        <div className="muted small pad">
+          Claude.app chat{node.data.left ? ' · left' : ''}. Messages wait in its inbox until you ask
+          that chat to check it.
+        </div>
+      ) : (
         <div className="muted small pad">
           Chats in Claude Desktop use this node's identity. Connect it to the agents they may talk
           to. Set up in Settings.

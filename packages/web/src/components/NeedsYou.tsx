@@ -84,20 +84,23 @@ function Item({ item }: { item: AttentionItem }) {
           </span>
         </div>
       ) : item.kind === 'unread' ? (
-        <div className="row">
-          <button
-            className="btn btn-ghost btn-xs"
-            onClick={() =>
-              api
-                .post(`/api/nodes/${item.nodeId}/reply`, {
-                  text: 'Call check_inbox and handle your new messages.',
-                })
-                .catch(() => undefined)
-            }
-          >
-            Tell it to check its inbox
-          </button>
-        </div>
+        // A Claude Desktop chat has no process to poke: the text itself tells the human what to say.
+        item.nodeType === 'external' ? null : (
+          <div className="row">
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={() =>
+                api
+                  .post(`/api/nodes/${item.nodeId}/reply`, {
+                    text: 'Call check_inbox and handle your new messages.',
+                  })
+                  .catch(() => undefined)
+              }
+            >
+              Tell it to check its inbox
+            </button>
+          </div>
+        )
       ) : item.kind === 'needs_input' && item.prompt === 'trust' ? (
         <div className="row perm-actions">
           <button className="btn btn-xs" onClick={() => key('enter')}>

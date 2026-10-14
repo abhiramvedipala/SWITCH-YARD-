@@ -95,6 +95,11 @@ function ClaudeDesktopCard() {
         talk to. Restart Claude Desktop to load it; then ask a chat:{' '}
         <code>list my switchyard peers</code>.
       </div>
+      <div className="muted small">
+        In any Claude chat, say: <code>{'"Join Switchyard as <name>"'}</code>. The chat appears on
+        this canvas; connect it to agents with edges. What agents send it waits in its inbox and
+        shows under Needs you until you ask that chat to check it.
+      </div>
     </div>
   );
 }

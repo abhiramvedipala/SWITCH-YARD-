@@ -1,4 +1,4 @@
-import type { Store, NodeBrief, NodeState } from '../store.js';
+import type { Store, NodeBrief, NodeState, NodeType } from '../store.js';
 import type { Bus } from '../bus/service.js';
 import { ptys } from '../pty/manager.js';
 import { getHarness } from '../harness/index.js';
@@ -54,6 +54,8 @@ export interface AttentionItem {
   text: string;
   createdAt: number;
   count?: number;
+  /** unread items only: `external` nodes cannot be told to check their inbox, the human relays. */
+  nodeType?: NodeType;
   /** permission items only */
   toolName?: string;
   source?: 'claude' | 'agy';
@@ -339,7 +341,10 @@ export class StatusMonitor {
           ...(trust ? { prompt: 'trust' as const } : {}),
         });
       }
-      if ((n.type === 'agent-terminal' || n.type === 'agent-chat') && n.state === 'idle') {
+      // A Claude Desktop chat cannot be woken (no process, no hook): its unread wait for the human to relay.
+      const idleAgent =
+        (n.type === 'agent-terminal' || n.type === 'agent-chat') && n.state === 'idle';
+      if (idleAgent || n.type === 'external') {
         const count = this.bus.pendingFor(n.id).length;
         if (count > 0) {
           items.push({
@@ -348,9 +353,13 @@ export class StatusMonitor {
             nodeId: n.id,
             nodeTitle: n.title,
             workspaceId: n.workspaceId,
-            text: `${count} unread message${count === 1 ? '' : 's'} while idle`,
+            text:
+              n.type === 'external'
+                ? `${n.title} chat has ${count} unread — open that chat in Claude and say "check my switchyard inbox"`
+                : `${count} unread message${count === 1 ? '' : 's'} while idle`,
             createdAt: Date.now(),
             count,
+            nodeType: n.type,
           });
         }
       }

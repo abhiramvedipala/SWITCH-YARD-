@@ -204,8 +204,9 @@ export class NodeService {
       if (n.type === 'agent-chat' && n.state === 'working')
         this.store.updateNode(n.id, { state: 'idle' }, { silent: true });
       // Claude Desktop's identity: rotate on every boot, so a copy of an older run file stops working.
-      // Its bus-mcp re-reads the same path on 401 and keeps going.
-      if (n.type === 'external') this.caps.issue(n.id, n.workspaceId);
+      // Its bus-mcp re-reads the same path on 401 and keeps going. Chat sub-nodes act through it (`as`)
+      // and hold no capability of their own.
+      if (n.type === 'external' && n.data.kind !== 'chat') this.caps.issue(n.id, n.workspaceId);
     }
   }
 }

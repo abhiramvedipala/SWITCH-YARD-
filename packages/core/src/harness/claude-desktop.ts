@@ -3,9 +3,11 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Core } from '../core.js';
+import type { NodeRec } from '../store.js';
 import { SWITCHYARD_HOME, BUS_MCP_ENTRY } from '../paths.js';
 import { runFilePath } from '../auth/capability.js';
 import { DEFAULT_SIZE, freeSlot } from '../nodes/service.js';
+import { BusError } from '../bus/service.js';
 import { LEAN_NODE_FLAGS } from './util.js';
 
 /**
@@ -111,7 +113,10 @@ export function connectClaudeDesktop(core: Core, workspaceId: string) {
   if (!store.getWorkspace(workspaceId)) throw new Error('unknown workspace');
   addDesktopEntry(); // refuses invalid JSON before anything else changes
   const cur = store.getNode(DESKTOP_NODE);
-  if (cur && cur.workspaceId !== workspaceId) nodes.remove(DESKTOP_NODE);
+  if (cur && cur.workspaceId !== workspaceId) {
+    nodes.remove(DESKTOP_NODE);
+    removeChatNodes(core); // they act through the base identity, which now lives elsewhere
+  }
   if (!store.getNode(DESKTOP_NODE)) {
     const [w, h] = DEFAULT_SIZE.external;
     const slot = freeSlot(
@@ -143,6 +148,89 @@ export function connectClaudeDesktop(core: Core, workspaceId: string) {
 /** Remove: revoke first (deletes the run file), so the identity is dead even if the config can't be edited. */
 export function removeClaudeDesktop(core: Core) {
   core.nodes.remove(DESKTOP_NODE);
+  removeChatNodes(core);
   removeDesktopEntry();
   return desktopStatus(core);
+}
+
+// ---------------------------------------------------------------- per-chat identities
+// Claude Desktop runs one bus-mcp for every chat and a tool call carries no chat id, so each chat names itself:
+// join_switchyard(name) makes `claude-desktop:<slug>` in the connector's workspace and the chat then passes
+// as:<name> on every call. Any chat can claim any name (same user, same app); that is documented, not enforced.
+// A chat node holds no capability of its own: core swaps the base identity for it on the `as` header.
+
+const isChat = (n: NodeRec) => n.harness === 'claude-desktop' && n.data.kind === 'chat';
+const CHAT_SIZE: [number, number] = [220, 120];
+
+// ponytail: ASCII slug; non-Latin names collapse to '-' (bad_name). Add \p{L} if anyone needs it.
+export const chatNodeId = (name: string) =>
+  `${DESKTOP_NODE}:${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, 40)
+    .replace(/^-|-$/g, '')}`;
+
+/** The chat node the base identity acts as, or undefined (unknown name, or not in the connector's workspace). */
+export function chatNode(core: Core, name: string): NodeRec | undefined {
+  const n = core.store.getNode(chatNodeId(name));
+  const base = core.store.getNode(DESKTOP_NODE);
+  return n && base && isChat(n) && n.workspaceId === base.workspaceId ? n : undefined;
+}
+
+export function joinChat(core: Core, name: string) {
+  const { store, bus } = core;
+  const base = store.getNode(DESKTOP_NODE);
+  if (!base)
+    throw new BusError('not_connected', 'Claude Desktop is not connected to a workspace', 403);
+  const id = chatNodeId(name);
+  if (id === `${DESKTOP_NODE}:`) throw new BusError('bad_name', 'name needs a letter or digit');
+  const cur = store.getNode(id);
+  if (cur) {
+    // Reuse by slug; the canvas title stays as the owner may have renamed it.
+    const data = { ...cur.data };
+    delete data.left;
+    store.updateNode(id, { data });
+  } else {
+    const [w, h] = CHAT_SIZE;
+    const slot = freeSlot(
+      store.listNodes(base.workspaceId).filter((n) => !n.data.project),
+      w,
+      h,
+    );
+    store.insertNode({
+      id,
+      workspaceId: base.workspaceId,
+      type: 'external',
+      harness: 'claude-desktop',
+      title: name,
+      cwd: null,
+      ...slot,
+      w,
+      h,
+      state: 'external',
+      sessionRef: null,
+      yolo: false,
+      data: { kind: 'chat' },
+      summary: '',
+    });
+  }
+  return {
+    nodeId: id,
+    name,
+    hint: `Pass as:'${name}' in every later switchyard call.`,
+    peers: bus.listPeers(id),
+  };
+}
+
+/** Marks the chat left; the node and its edges stay until the owner deletes it on the canvas. */
+export function leaveChat(core: Core, name: string) {
+  const n = chatNode(core, name);
+  if (!n)
+    throw new BusError('unknown_chat', `no chat named "${name}"; call join_switchyard first`, 404);
+  core.store.updateNode(n.id, { data: { ...n.data, left: true } });
+  return { nodeId: n.id, left: true };
+}
+
+function removeChatNodes(core: Core) {
+  for (const n of core.store.allNodes()) if (isChat(n)) core.nodes.remove(n.id);
 }

@@ -143,8 +143,15 @@ export function NodeHeader({ node, inFocus }: { node: SNode; inFocus?: boolean }
       <span className="node-title" title={node.cwd ?? node.title}>
         {node.title}
       </span>
-      {node.harness && node.harness !== 'shell' && (
-        <span className={`badge badge-${node.harness}`}>{harnessLabel(node.harness)}</span>
+      {node.data.kind === 'chat' ? (
+        <span className="badge badge-chat" title="A chat in Claude.app">
+          💬
+        </span>
+      ) : (
+        node.harness &&
+        node.harness !== 'shell' && (
+          <span className={`badge badge-${node.harness}`}>{harnessLabel(node.harness)}</span>
+        )
       )}
       {node.yolo && (
         <span className="badge badge-yolo" title="Permissions bypassed">

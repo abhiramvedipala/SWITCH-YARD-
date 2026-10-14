@@ -49,6 +49,9 @@ export interface SNode {
     content?: string;
     url?: string;
     readOnly?: boolean;
+    /** external nodes: 'chat' = one Claude Desktop chat (join_switchyard); left = it said goodbye. */
+    kind?: 'chat';
+    left?: boolean;
   };
   summary: string;
   alive?: boolean;
@@ -87,6 +90,8 @@ export interface AttentionItem {
   text: string;
   createdAt: number;
   count?: number;
+  /** unread items only: external nodes (Claude Desktop chats) cannot be told to check their inbox. */
+  nodeType?: NodeType;
   /** permission items only */
   toolName?: string;
   source?: 'claude' | 'agy';
