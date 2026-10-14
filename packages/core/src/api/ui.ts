@@ -20,6 +20,8 @@ import {
   closeAgySessions,
 } from '../harness/agy.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
+import { PROVIDERS, keyStatus, removeKey, writeKey } from '../harness/api.js';
+import { harnesses } from '../harness/index.js';
 import { listClaudeSessions } from '../sessions/claude.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
@@ -192,6 +194,46 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       return allowRuleState();
     }),
   );
+
+  // ---------------------------------------------------------------- API keys
+  // Opt-in API-key chat participants. Keys live only in ~/.switchyard/keys/<provider> (0600); no route ever returns
+  // one (status is configured + last 4). Computer only, like remoteReadOnly: a phone session can't read or set them.
+  const keyRoute =
+    (fn: (provider: (typeof PROVIDERS)[number], req: FastifyRequest) => void) =>
+    async (req: FastifyRequest) => {
+      if (deps.isRemote(req))
+        throw new BusError(
+          'local_only',
+          'API keys can only be managed on the computer itself.',
+          403,
+        );
+      const provider = z.enum(PROVIDERS).parse(p<{ provider: string }>(req).provider);
+      fn(provider, req);
+      // Only this harness's detection changes; no need to re-probe the CLIs.
+      core.detections[`api-${provider}`] = await harnesses[`api-${provider}`].detect();
+      return keyStatus(provider);
+    };
+  app.get(
+    '/api/keys',
+    h((req) => {
+      if (deps.isRemote(req))
+        throw new BusError(
+          'local_only',
+          'API keys can only be managed on the computer itself.',
+          403,
+        );
+      return Object.fromEntries(PROVIDERS.map((pr) => [pr, keyStatus(pr)]));
+    }),
+  );
+  app.post(
+    '/api/keys/:provider',
+    h(
+      keyRoute((provider, req) =>
+        writeKey(provider, z.object({ key: z.string().max(1000) }).parse(req.body).key),
+      ),
+    ),
+  );
+  app.delete('/api/keys/:provider', h(keyRoute((provider) => removeKey(provider))));
 
   // ---------------------------------------------------------------- filesystem (folder picker)
   app.get(

@@ -127,6 +127,12 @@ const MIGRATIONS: string[] = [
   `,
   // F9: which run step a turn belonged to, so step rows can show their own usage.
   `ALTER TABLE usage ADD COLUMN step_id TEXT;`,
+  // API-key chat harnesses: their APIs are stateless, so each session's prior turns live here (capped in harness/api.ts).
+  `CREATE TABLE api_history (
+    session_ref TEXT PRIMARY KEY,
+    messages_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );`,
 ];
 
 export function openDb(path: string = DB_PATH): Db {

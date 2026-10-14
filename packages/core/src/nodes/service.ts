@@ -68,18 +68,21 @@ export class NodeService {
     let harness: string | null = null;
     if (type === 'terminal') harness = 'shell';
     if (type === 'agent-terminal' || type === 'agent-chat') {
-      if (!isHarnessId(input.harness) || !getHarness(input.harness).isAgent) {
+      const h = isHarnessId(input.harness) ? getHarness(input.harness) : null;
+      // Chat-only harnesses (API-key models) can back a chat node, never a terminal.
+      const chatOnly = type === 'agent-chat' && !!h?.runTurn;
+      if (!h || (!h.isAgent && !chatOnly)) {
         throw new Error('agent nodes need a harness: claude, agy or mock');
       }
-      if (type === 'agent-chat' && !getHarness(input.harness).runTurn)
-        throw new Error('harness cannot be driven');
-      harness = input.harness;
+      if (type === 'agent-chat' && !h.runTurn) throw new Error('harness cannot be driven');
+      harness = h.id;
     }
     const cwd =
       PTY_TYPES.includes(type) || type === 'agent-chat'
         ? this.resolveCwd(ws.rootDir, input.cwd)
         : null;
-    if (cwd && harness && harness !== 'shell' && harness !== 'mock') {
+    // Chat-only harnesses never touch files, so the app's-own-folder guard does not apply to them.
+    if (cwd && harness && harness !== 'mock' && getHarness(harness).isAgent) {
       assertSafeCwd(cwd, input.allowOwnFolder);
     }
     const [dw, dh] = DEFAULT_SIZE[type];
@@ -204,7 +207,7 @@ function defaultTitle(type: NodeType, harness: string | null, count: number): st
       return `Terminal ${n}`;
     case 'agent-terminal':
     case 'agent-chat':
-      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : 'Mock'} ${n}`;
+      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'mock' ? 'Mock' : getHarness(harness).label} ${n}`;
     case 'note':
       return 'Note';
     case 'doc':
