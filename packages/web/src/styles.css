@@ -1253,6 +1253,12 @@ label.check {
 .dir:hover {
   background: var(--panel-2);
 }
+.handoff {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+}
 .session-list {
   max-height: 46vh;
   overflow: auto;

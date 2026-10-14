@@ -651,6 +651,46 @@ export function ImportModal() {
       notify(String((e as Error).message), 'error');
     }
   };
+  // Continue in…: the picked session becomes HANDOFF-<slug>.md in a workspace folder, read first by a new node.
+  const available = useStore((s) => s.available);
+  const drivable = useStore((s) => s.drivable);
+  const detections = useStore((s) => s.detections);
+  const workspaces = useStore((s) => s.workspaces);
+  const selectWorkspace = useStore((s) => s.selectWorkspace);
+  const [handoff, setHandoff] = useState<{ title: string; body: Record<string, unknown> } | null>(
+    null,
+  );
+  const [target, setTarget] = useState('term:claude'); // `${'term' | 'chat'}:${harness}`
+  const [targetWs, setTargetWs] = useState(wsId ?? '');
+  const chatChoices = drivable.filter((h) => detections[h as HarnessId]?.installed);
+  const choices = [...available.map((h) => `term:${h}`), ...chatChoices.map((h) => `chat:${h}`)];
+  const chosen = choices.includes(target) ? target : (choices[0] ?? '');
+  const open = async (allowOwnFolder = false) => {
+    if (!handoff || !chosen) return;
+    const kind = chosen.slice(0, chosen.indexOf(':'));
+    const harness = chosen.slice(chosen.indexOf(':') + 1);
+    try {
+      const r = await api.post<{ node: { id: string }; file: string }>(
+        `/api/workspaces/${targetWs}/handoff`,
+        { ...handoff.body, harness, chat: kind === 'chat', allowOwnFolder },
+      );
+      if (targetWs !== wsId) await selectWorkspace(targetWs);
+      close();
+      set({ view: 'canvas', selectedId: r.node.id });
+      notify(`${r.file} written; ${harnessLabel(harness)} starts by reading it`);
+    } catch (e) {
+      const msg = String((e as Error).message);
+      if (
+        !allowOwnFolder &&
+        /own folder|private data folder/.test(msg) &&
+        confirm(
+          `${msg}\n\nI understand this is the app's own folder — write the hand-off there anyway?`,
+        )
+      )
+        return open(true);
+      notify(msg, 'error');
+    }
+  };
   const [tab, setTab] = useState<ImportTab>('claude');
   const [claude, setClaude] = useState<SessionSummary[] | null>(null);
   const [agy, setAgy] = useState<{ sessions: SessionSummary[]; note?: string } | null>(null);
@@ -719,6 +759,55 @@ export function ImportModal() {
           in its next turn (the last 20,000 characters if it is longer).
         </p>
       )}
+      {handoff && (
+        <div className="handoff">
+          <div className="row wrap">
+            <span className="grow">Continue “{handoff.title}” in</span>
+            <select
+              className="handoff-harness"
+              value={chosen}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <optgroup label="Terminal agent">
+                {available.map((h) => (
+                  <option key={h} value={`term:${h}`}>
+                    {harnessLabel(h)}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Chat node">
+                {chatChoices.map((h) => (
+                  <option key={h} value={`chat:${h}`}>
+                    {harnessLabel(h)} chat
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+            <select
+              className="handoff-ws"
+              value={targetWs}
+              onChange={(e) => setTargetWs(e.target.value)}
+            >
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn" disabled={!chosen || !targetWs} onClick={() => open()}>
+              Open
+            </button>
+            <button className="btn btn-ghost" onClick={() => setHandoff(null)}>
+              Cancel
+            </button>
+          </div>
+          <p className="muted small">
+            Writes <code>HANDOFF-&lt;slug&gt;.md</code> (the newest turns, up to 24,000 characters)
+            into that workspace’s folder and starts the agent with “Read it first”. A chat node gets
+            the text as its first message. Nothing leaves this computer.
+          </p>
+        </div>
+      )}
       <div className="tabs">
         {((seedRoomId ? ['claude', 'export'] : ['claude', 'agy', 'export']) as ImportTab[]).map(
           (t) => (
@@ -776,6 +865,16 @@ export function ImportModal() {
                 >
                   {seedRoomId ? 'Seed room' : 'Resume here'}
                 </button>
+                {!seedRoomId && (
+                  <button
+                    className="btn btn-xs btn-ghost"
+                    onClick={() =>
+                      setHandoff({ title: s.title, body: { claudeSessionId: s.sessionId } })
+                    }
+                  >
+                    Continue in…
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -803,6 +902,14 @@ export function ImportModal() {
                   }
                 >
                   Resume here
+                </button>
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={() =>
+                    setHandoff({ title: s.title, body: { agySessionId: s.sessionId } })
+                  }
+                >
+                  Continue in…
                 </button>
               </div>
             ))}
@@ -893,6 +1000,21 @@ export function ImportModal() {
                   ? `Seed room with ${picked.length || ''} conversation${picked.length === 1 ? '' : 's'}`
                   : `Import ${picked.length || ''} as doc node${picked.length === 1 ? '' : 's'}`}
               </button>
+              {!seedRoomId && (
+                <button
+                  className="btn btn-ghost"
+                  disabled={picked.length !== 1}
+                  title={picked.length === 1 ? undefined : 'Pick exactly one conversation'}
+                  onClick={() =>
+                    setHandoff({
+                      title: convs.find((c) => c.index === picked[0])?.title ?? 'conversation',
+                      body: { json: exportJson, index: picked[0] },
+                    })
+                  }
+                >
+                  Continue in…
+                </button>
+              )}
             </>
           )}
         </>

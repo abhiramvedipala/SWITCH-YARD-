@@ -21,11 +21,19 @@ import {
 } from '../harness/agy.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
 import { PROVIDERS, keyStatus, removeKey, writeKey } from '../harness/api.js';
-import { harnesses } from '../harness/index.js';
+import { harnesses, isHarnessId } from '../harness/index.js';
 import { listClaudeSessions, readClaudeTranscript } from '../sessions/claude.js';
 import { drivableHarnesses, HUMAN_NAME } from '../rooms/service.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
+import {
+  handoffFromAgy,
+  handoffFromClaude,
+  handoffFromExport,
+  handoffPrompt,
+  writeHandoff,
+  type Handoff,
+} from '../sessions/handoff.js';
 import { runCapture } from '../harness/util.js';
 import { scratchRoot, assertSafeCwd } from '../paths.js';
 import {
@@ -939,6 +947,73 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
         }
       }
       return n;
+    }),
+  );
+  /**
+   * Continue in…: a session (Claude Code, agy, or one conversation of an export) becomes HANDOFF-<slug>.md in
+   * the workspace folder, and a node of the chosen harness starts by reading it (a chat node gets the text as
+   * its first turn). Local only: nothing a phone can start.
+   */
+  app.post(
+    '/api/workspaces/:id/handoff',
+    { bodyLimit: 200 * 1024 * 1024 },
+    h(async (req) => {
+      if (deps.isRemote(req))
+        throw new Error('hand-offs can only be started on the computer itself');
+      const b = z
+        .object({
+          claudeSessionId: z.string().optional(),
+          agySessionId: z.string().optional(),
+          json: z.string().optional(),
+          index: z.number().int().min(0).optional(),
+          harness: z.string(),
+          chat: z.boolean().optional(),
+          allowOwnFolder: z.boolean().optional(),
+        })
+        .parse(req.body);
+      const wsId = p<{ id: string }>(req).id;
+      const ws = store.getWorkspace(wsId);
+      if (!ws) throw new Error('unknown workspace');
+      const target = isHarnessId(b.harness) ? harnesses[b.harness] : null;
+      if (!target || !(b.chat ? target.runTurn : target.isAgent))
+        throw new Error(
+          `${b.harness} cannot ${b.chat ? 'be driven as a chat' : 'run as a terminal agent'}`,
+        );
+      // The file is the side effect that matters, so the guard applies to every harness (mock included).
+      assertSafeCwd(ws.rootDir, b.allowOwnFolder);
+      let hd: Handoff;
+      if (b.claudeSessionId) {
+        // Only sessions the import dialog lists: the client names an id, never a path.
+        const s = listClaudeSessions().find((x) => x.sessionId === b.claudeSessionId);
+        if (!s?.path) throw new Error('unknown Claude Code session');
+        hd = handoffFromClaude(s);
+      } else if (b.agySessionId) {
+        const s = (await listAgySessions()).sessions.find((x) => x.sessionId === b.agySessionId);
+        if (!s?.path) throw new Error('unknown agy conversation');
+        hd = handoffFromAgy(s);
+      } else if (b.json !== undefined && b.index !== undefined) {
+        const c = parseExport(JSON.parse(b.json))[b.index];
+        if (!c) throw new Error('no conversation at that index');
+        hd = handoffFromExport(c);
+      } else throw new Error('pick a session or one conversation from an export file');
+      const file = writeHandoff(ws.rootDir, hd);
+      const common = {
+        harness: b.harness,
+        title: `Hand-off: ${hd.title}`.slice(0, 60),
+        cwd: ws.rootDir,
+        allowOwnFolder: b.allowOwnFolder,
+      };
+      if (b.chat) {
+        const n = nodes.create(wsId, { ...common, type: 'agent-chat' });
+        void chat.send(n.id, file.markdown);
+        return { node: n, file: file.name };
+      }
+      const n = nodes.create(wsId, {
+        ...common,
+        type: 'agent-terminal',
+        initialPrompt: handoffPrompt(file.name, hd.source),
+      });
+      return { node: n, file: file.name };
     }),
   );
   app.post(

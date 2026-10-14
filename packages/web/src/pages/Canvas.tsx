@@ -66,12 +66,24 @@ export function Canvas() {
           width: keepPos ? p!.width : n.w,
           height: keepPos ? p!.height : n.h,
           data: { node: n },
-          selected: p?.selected ?? false,
+          // A node created with selectedId already pointing at it (a hand-off) appears selected.
+          selected: p ? p.selected : n.id === useStore.getState().selectedId,
           dragHandle: '.node-drag',
         } satisfies Node;
       });
     });
   }, [nodes]);
+
+  // Programmatic selection (set({selectedId}) from a dialog): mark that node, leave anything else alone.
+  const selectedId = useStore((s) => s.selectedId);
+  useEffect(() => {
+    if (!selectedId) return;
+    setRfNodes((ns) =>
+      ns.some((n) => n.id === selectedId && !n.selected)
+        ? ns.map((n) => ({ ...n, selected: n.id === selectedId }))
+        : ns,
+    );
+  }, [selectedId]);
 
   const rfEdges: Edge[] = useMemo(
     () =>
