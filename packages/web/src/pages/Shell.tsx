@@ -50,7 +50,7 @@ function useLiveEvents() {
       } else if (e.t === 'pty.exit') {
         s.patchNodeLocal(e.id, { alive: false });
       } else if (e.t === 'change') {
-        if (e.entity === 'workspaces') void s.loadWorkspaces();
+        if (e.entity === 'workspaces') s.loadWorkspaces().catch(() => undefined);
         if (e.workspaceId && e.workspaceId !== s.wsId && e.entity !== 'questions') return;
         if (e.entity === 'nodes' || e.entity === 'edges') refetch('graph');
         if (e.entity === 'messages') {
@@ -345,9 +345,10 @@ export function Shell() {
   const s = useStore();
   const narrow = useIsNarrow();
   useEffect(() => {
-    void s.loadWorkspaces();
-    void s.loadSettings();
-    void s.loadHarnesses();
+    // A failed first load (core restarting, a reload cutting the request off) retries on the next event.
+    s.loadWorkspaces().catch(() => undefined);
+    s.loadSettings().catch(() => undefined);
+    s.loadHarnesses().catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

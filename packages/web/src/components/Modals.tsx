@@ -16,8 +16,8 @@ export function SettingsModal() {
   const [tools, setTools] = useState('');
   const [scratch, setScratch] = useState('');
   useEffect(() => {
-    void loadSettings();
-    void loadHarnesses(true);
+    loadSettings().catch(() => undefined);
+    loadHarnesses(true).catch(() => undefined);
     api
       .get<{ scratchDir: string }>('/api/meta')
       .then((m) => setScratch(m.scratchDir))
