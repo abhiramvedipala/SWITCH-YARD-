@@ -1524,12 +1524,6 @@ label.check {
   gap: 6px;
   margin-bottom: 2px;
 }
-.rmsg-human {
-  align-self: flex-end;
-  background: #173040;
-  border-radius: 9px;
-  padding: 6px 10px;
-}
 .rmsg-streaming .pre {
   color: var(--muted);
 }

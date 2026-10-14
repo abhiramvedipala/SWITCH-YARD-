@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
@@ -283,7 +284,11 @@ function RoomPane({ roomId }: { roomId: string }) {
           Array.isArray(m) ? (
             <ImportGroup key={m[0]!.id} lines={m} />
           ) : (
-            <div key={m.id} className={`rmsg rmsg-${m.authorKind}`}>
+            <div
+              key={m.id}
+              // Your own lines reuse the chat's user bubble, so both themes already style them.
+              className={`rmsg rmsg-${m.authorKind}${m.authorKind === 'human' ? ' msg msg-user' : ''}`}
+            >
               <div className="rmsg-head">
                 <span
                   className="person-dot"
@@ -452,6 +457,15 @@ function Composer({ roomId, participants }: { roomId: string; participants: Room
   const [hi, setHi] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const ta = useRef<HTMLTextAreaElement>(null);
+  // After picking a name, put the caret behind it in the same commit, before the next keystroke
+  // lands (a later requestAnimationFrame moved it back under fast typing and scrambled the text).
+  const caretTo = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretTo.current === null || !ta.current) return;
+    ta.current.focus();
+    ta.current.setSelectionRange(caretTo.current, caretTo.current);
+    caretTo.current = null;
+  }, [draft]);
   // "@Mo|" → offer the participants whose name starts with "Mo" (names may contain spaces).
   const q = /@([^@\n]{0,40})$/.exec(draft.slice(0, caret));
   const query = q?.[1]?.toLowerCase() ?? '';
@@ -466,10 +480,7 @@ function Composer({ roomId, participants }: { roomId: string; participants: Room
     setDraft(next + draft.slice(caret));
     setCaret(next.length);
     setHi(0);
-    requestAnimationFrame(() => {
-      ta.current?.focus();
-      ta.current?.setSelectionRange(next.length, next.length);
-    });
+    caretTo.current = next.length;
   };
 
   const send = async (e?: FormEvent) => {
