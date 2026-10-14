@@ -184,7 +184,14 @@ export function refetch(kind: 'graph' | 'tasks' | 'runs' | 'attention', ms = 120
   );
 }
 
+const API_LABELS: Record<string, string> = {
+  'api-anthropic': 'Claude API',
+  'api-openai': 'OpenAI API',
+  'api-gemini': 'Gemini API',
+};
+
 export function harnessLabel(h: string | null | undefined): string {
+  if (h && API_LABELS[h]) return API_LABELS[h];
   return h === 'claude'
     ? 'Claude Code'
     : h === 'agy'
