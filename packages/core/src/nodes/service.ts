@@ -70,7 +70,7 @@ export class NodeService {
     if (type === 'terminal') harness = 'shell';
     if (type === 'agent-terminal' || type === 'agent-chat') {
       if (!isHarnessId(input.harness) || !getHarness(input.harness).isAgent) {
-        throw new Error('agent nodes need a harness: claude, agy or mock');
+        throw new Error('agent nodes need a harness: claude, agy, codex or mock');
       }
       if (type === 'agent-chat' && !getHarness(input.harness).runTurn)
         throw new Error('harness cannot be driven');
@@ -208,7 +208,7 @@ function defaultTitle(type: NodeType, harness: string | null, count: number): st
       return `Terminal ${n}`;
     case 'agent-terminal':
     case 'agent-chat':
-      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : 'Mock'} ${n}`;
+      return `${harness === 'claude' ? 'Claude' : harness === 'agy' ? 'Antigravity' : harness === 'codex' ? 'Codex' : 'Mock'} ${n}`;
     case 'note':
       return 'Note';
     case 'doc':

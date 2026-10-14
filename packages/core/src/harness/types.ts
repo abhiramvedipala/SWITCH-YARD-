@@ -1,6 +1,6 @@
 import type { NodeRec, Workspace } from '../store.js';
 
-export type HarnessId = 'claude' | 'agy' | 'shell' | 'mock';
+export type HarnessId = 'claude' | 'agy' | 'codex' | 'shell' | 'mock';
 
 export interface Detection {
   installed: boolean;
