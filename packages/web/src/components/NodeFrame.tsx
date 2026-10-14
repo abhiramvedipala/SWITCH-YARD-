@@ -13,6 +13,7 @@ const TYPE_ICON: Record<string, string> = {
   note: '✎',
   doc: '¶',
   browser: '◎',
+  external: '◇',
 };
 
 export function NodeMenu({ node, onClose }: { node: SNode; onClose: () => void }) {
@@ -131,7 +132,10 @@ export function NodeHeader({ node, inFocus }: { node: SNode; inFocus?: boolean }
   const set = useStore((s) => s.set);
   const readOnly = useStore((s) => s.readOnly);
   const isAgentish =
-    node.type === 'agent-terminal' || node.type === 'agent-chat' || node.type === 'terminal';
+    node.type === 'agent-terminal' ||
+    node.type === 'agent-chat' ||
+    node.type === 'terminal' ||
+    node.type === 'external';
   return (
     <div className="node-header node-drag">
       <span className="node-icon">{TYPE_ICON[node.type]}</span>

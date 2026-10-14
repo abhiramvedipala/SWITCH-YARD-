@@ -10,13 +10,14 @@ import { hub } from '../events.js';
 import { assertSafeCwd } from '../paths.js';
 
 const PTY_TYPES: NodeType[] = ['terminal', 'agent-terminal'];
-const DEFAULT_SIZE: Record<NodeType, [number, number]> = {
+export const DEFAULT_SIZE: Record<NodeType, [number, number]> = {
   terminal: [560, 360],
   'agent-terminal': [640, 420],
   'agent-chat': [460, 520],
   note: [280, 220],
   doc: [460, 420],
   browser: [640, 460],
+  external: [260, 130],
 };
 
 export interface CreateNodeInput {
@@ -170,7 +171,7 @@ export class NodeService {
    */
   onBoot(): void {
     const all = this.store.allNodes();
-    const isAgent = (n: NodeRec) => !!n.harness && getHarness(n.harness).isAgent;
+    const isAgent = (n: NodeRec) => isHarnessId(n.harness) && getHarness(n.harness).isAgent;
     this.caps.restore(all.filter((n) => isAgent(n) && !this.isPtyNode(n)).map((n) => n.id));
     for (const n of all) {
       if (this.isPtyNode(n) && !ptys.isAlive(n.id)) {
@@ -179,12 +180,15 @@ export class NodeService {
       }
       if (n.type === 'agent-chat' && n.state === 'working')
         this.store.updateNode(n.id, { state: 'idle' }, { silent: true });
+      // Claude Desktop's identity: rotate on every boot, so a copy of an older run file stops working.
+      // Its bus-mcp re-reads the same path on 401 and keeps going.
+      if (n.type === 'external') this.caps.issue(n.id, n.workspaceId);
     }
   }
 }
 
 /** First grid slot (left-to-right, top-to-bottom) where a w×h node overlaps nothing on the canvas. */
-function freeSlot(nodes: NodeRec[], w: number, h: number): { x: number; y: number } {
+export function freeSlot(nodes: NodeRec[], w: number, h: number): { x: number; y: number } {
   const GAP = 40;
   const COL = 680;
   const ROW = 480;
@@ -214,5 +218,7 @@ function defaultTitle(type: NodeType, harness: string | null, count: number): st
       return 'Doc';
     case 'browser':
       return 'Preview';
+    case 'external':
+      return 'Claude Desktop';
   }
 }

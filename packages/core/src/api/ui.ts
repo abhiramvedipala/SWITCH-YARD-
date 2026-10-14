@@ -35,6 +35,11 @@ import {
   TEST_COMMAND_RULE,
   writeRuleFor,
 } from '../harness/agy-settings.js';
+import {
+  desktopStatus,
+  connectClaudeDesktop,
+  removeClaudeDesktop,
+} from '../harness/claude-desktop.js';
 import type { NodeType } from '../store.js';
 import { usageSummary } from '../usage/index.js';
 
@@ -234,6 +239,25 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     ),
   );
   app.delete('/api/keys/:provider', h(keyRoute((provider) => removeKey(provider))));
+
+  /** Opt-in Claude Desktop connector (Settings card). Writes outside the repo, so only from the computer itself. */
+  app.get(
+    '/api/claude-desktop',
+    h(() => desktopStatus(core)),
+  );
+  app.post(
+    '/api/claude-desktop',
+    h((req) => {
+      if (deps.isRemote(req))
+        throw new Error('Claude Desktop can only be connected or removed on the computer itself');
+      const b = z
+        .object({ action: z.enum(['connect', 'remove']), workspaceId: z.string().optional() })
+        .parse(req.body);
+      if (b.action === 'remove') return removeClaudeDesktop(core);
+      if (!b.workspaceId) throw new Error('pick the workspace Claude Desktop joins');
+      return connectClaudeDesktop(core, b.workspaceId);
+    }),
+  );
 
   // ---------------------------------------------------------------- filesystem (folder picker)
   app.get(

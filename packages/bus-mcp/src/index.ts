@@ -43,6 +43,12 @@ export function buildServer(getClient: () => BusClient): McpServer {
   };
 
   tool(
+    'whoami',
+    'Your own identity on the Switchyard canvas: nodeId, title, workspaceId, harness.',
+    {},
+    (_a, c) => c.call('GET', '/bus/whoami'),
+  );
+  tool(
     'list_peers',
     'List the agents/nodes connected to you on the Switchyard canvas (only edge-connected nodes are visible): id, title, harness, state, summary.',
     {},

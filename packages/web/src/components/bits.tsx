@@ -8,6 +8,7 @@ const STATE_LABEL: Record<string, string> = {
   needs_input: 'needs you',
   exited: 'exited',
   starting: 'starting',
+  external: 'external',
 };
 
 export function StatusChip({ state }: { state: NodeState | string }) {
