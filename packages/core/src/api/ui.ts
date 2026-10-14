@@ -20,6 +20,8 @@ import {
   closeAgySessions,
 } from '../harness/agy.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
+import { PROVIDERS, keyStatus, removeKey, writeKey } from '../harness/api.js';
+import { harnesses } from '../harness/index.js';
 import { listClaudeSessions, readClaudeTranscript } from '../sessions/claude.js';
 import { drivableHarnesses, HUMAN_NAME } from '../rooms/service.js';
 import { listAgySessions } from '../sessions/agy.js';
@@ -155,6 +157,10 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
     h(async (req) => {
       if ((req.query as { refresh?: string }).refresh || Object.keys(core.detections).length === 0)
         await core.refreshDetections();
+      // API harnesses only read a key file: always fresh, so a slow CLI re-probe that started before a key was
+      // saved can't report it missing.
+      for (const pr of PROVIDERS)
+        core.detections[`api-${pr}`] = await harnesses[`api-${pr}`].detect();
       return {
         detections: core.detections,
         available: runs.available,
@@ -201,6 +207,44 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       return allowRuleState();
     }),
   );
+
+  // ---------------------------------------------------------------- API keys
+  // Opt-in API-key chat participants. Keys live only in ~/.switchyard/keys/<provider> (0600); no route ever returns
+  // one (status is configured + last 4). Computer only, like remoteReadOnly: a phone session can't read or set them.
+  const keyRoute =
+    (fn: (provider: (typeof PROVIDERS)[number], req: FastifyRequest) => void) =>
+    (req: FastifyRequest) => {
+      if (deps.isRemote(req))
+        throw new BusError(
+          'local_only',
+          'API keys can only be managed on the computer itself.',
+          403,
+        );
+      const provider = z.enum(PROVIDERS).parse(p<{ provider: string }>(req).provider);
+      fn(provider, req);
+      return keyStatus(provider);
+    };
+  app.get(
+    '/api/keys',
+    h((req) => {
+      if (deps.isRemote(req))
+        throw new BusError(
+          'local_only',
+          'API keys can only be managed on the computer itself.',
+          403,
+        );
+      return Object.fromEntries(PROVIDERS.map((pr) => [pr, keyStatus(pr)]));
+    }),
+  );
+  app.post(
+    '/api/keys/:provider',
+    h(
+      keyRoute((provider, req) =>
+        writeKey(provider, z.object({ key: z.string().max(1000) }).parse(req.body).key),
+      ),
+    ),
+  );
+  app.delete('/api/keys/:provider', h(keyRoute((provider) => removeKey(provider))));
 
   /** Opt-in Claude Desktop connector (Settings card). Writes outside the repo, so only from the computer itself. */
   app.get(

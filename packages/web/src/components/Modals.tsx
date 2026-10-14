@@ -98,6 +98,99 @@ function ClaudeDesktopCard() {
   );
 }
 
+const API_PROVIDERS = [
+  { id: 'anthropic', harness: 'api-anthropic', host: 'api.anthropic.com' },
+  { id: 'openai', harness: 'api-openai', host: 'api.openai.com' },
+  { id: 'gemini', harness: 'api-gemini', host: 'generativelanguage.googleapis.com' },
+] as const;
+type KeyStatus = { configured: boolean; last4: string | null };
+
+/** Opt-in API-key chat participants. The key goes to core once and is never sent back (status: last 4 only). */
+function ApiKeysCard() {
+  const remote = useStore((s) => s.remote);
+  const detections = useStore((s) => s.detections);
+  const { notify, loadHarnesses } = useStore.getState();
+  const [status, setStatus] = useState<Record<string, KeyStatus>>({});
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (remote) return;
+    api
+      .get<Record<string, KeyStatus>>('/api/keys')
+      .then(setStatus)
+      .catch(() => undefined);
+  }, [remote]);
+  const act = async (id: string, remove: boolean) => {
+    const key = draft[id] ?? '';
+    setDraft((d) => ({ ...d, [id]: '' })); // the pasted key leaves the page as soon as it is sent
+    try {
+      const st = remove
+        ? await api.del<KeyStatus>(`/api/keys/${id}`)
+        : await api.post<KeyStatus>(`/api/keys/${id}`, { key });
+      setStatus((s) => ({ ...s, [id]: st }));
+      notify(remove ? 'Key removed' : 'Key saved');
+      await loadHarnesses();
+    } catch (e) {
+      notify(String((e as Error).message), 'error');
+    }
+  };
+  if (remote)
+    return <div className="muted small">API keys can only be managed on the computer itself.</div>;
+  return (
+    <div className="harness-list api-keys">
+      {API_PROVIDERS.map((p) => {
+        const st = status[p.id];
+        return (
+          <form
+            key={p.id}
+            className="harness"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (draft[p.id]?.trim()) void act(p.id, false);
+            }}
+          >
+            <div className="row">
+              <b>{harnessLabel(p.harness)}</b>
+              <span className={`badge ${st?.configured ? 'badge-ok' : 'badge-wait'}`}>
+                {st ? (st.configured ? `key …${st.last4}` : 'no key') : '…'}
+              </span>
+            </div>
+            <div className="row">
+              <input
+                className="grow mono"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={`${harnessLabel(p.harness)} key`}
+                placeholder={
+                  st?.configured ? 'Paste a new key to replace it' : 'Paste your API key'
+                }
+                value={draft[p.id] ?? ''}
+                onChange={(e) => setDraft((d) => ({ ...d, [p.id]: e.target.value }))}
+              />
+              <button className="btn btn-xs" type="submit" disabled={!draft[p.id]?.trim()}>
+                Save
+              </button>
+              {st?.configured && (
+                <button
+                  className="btn btn-ghost btn-xs"
+                  type="button"
+                  onClick={() => act(p.id, true)}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="muted small">
+              Chat only, billed per token to your account. Talks only to <code>{p.host}</code>.
+              Default model <code>{detections[p.harness]?.models?.[0] ?? '…'}</code>.
+            </div>
+          </form>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SettingsModal() {
   const set = useStore((s) => s.set);
   const settings = useStore((s) => s.settings);
@@ -269,6 +362,14 @@ export function SettingsModal() {
 
       <h3>Claude Desktop</h3>
       <ClaudeDesktopCard />
+
+      <h3>API keys</h3>
+      <p className="muted small">
+        Optional: chat with a model through your own API key. Each key is saved only in{' '}
+        <code>~/.switchyard/keys/</code> (readable by you alone) and is never shown again. This is
+        the only part of Switchyard that goes online, and only when you send a message.
+      </p>
+      <ApiKeysCard />
 
       {settings && (
         <>

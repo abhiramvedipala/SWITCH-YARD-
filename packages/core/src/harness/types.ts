@@ -1,6 +1,7 @@
 import type { NodeRec, Workspace } from '../store.js';
 
-export type HarnessId = 'claude' | 'agy' | 'codex' | 'shell' | 'mock';
+export type HarnessId =
+  'claude' | 'agy' | 'codex' | 'shell' | 'mock' | 'api-anthropic' | 'api-openai' | 'api-gemini';
 
 export interface Detection {
   installed: boolean;
@@ -10,6 +11,8 @@ export interface Detection {
   notes?: string[];
   installHint?: string;
   loginHint?: string;
+  /** Chat-only API harnesses: model IDs to suggest; the first is the default. */
+  models?: string[];
 }
 
 export interface NodeCtx {
@@ -43,6 +46,8 @@ export interface TurnOptions {
   /** Node whose bus identity this turn should carry (gives the agent the switchyard tools). */
   nodeId?: string;
   sessionId?: string | null;
+  /** API harnesses only: model ID override (chat node data.model). */
+  model?: string;
   schema?: Record<string, unknown>;
   yolo?: boolean;
   allowedTools?: string[];

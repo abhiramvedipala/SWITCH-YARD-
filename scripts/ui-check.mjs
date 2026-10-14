@@ -4,7 +4,15 @@
 // Everything lives in temp dirs + ./scratch; the real ~/.switchyard and ~/.claude are never touched.
 // Usage: npm run build && node scripts/ui-check.mjs   (CHROMIUM_PATH=... to pick a browser)
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -668,7 +676,50 @@ try {
       !existsSync(join(home, 'run', 'claude-desktop.json')),
   );
   check(!!desktopGone, 'CD Remove deletes the entry, the node and its run file');
+
+  // ---------------- API-key chats (Settings card). No message is sent, so nothing goes online.
+  const fakeKey = 'sk-ui-check-FAKE-KEY-0042';
+  await page.fill('.api-keys input[aria-label="Claude API key"]', fakeKey);
+  await page.click(
+    '.api-keys form:has(input[aria-label="Claude API key"]) button:has-text("Save")',
+  );
+  const keySaved = await until(() => page.isVisible('.api-keys .badge:has-text("key …0042")'));
+  const keyFile = join(home, 'keys', 'anthropic');
+  check(
+    !!keySaved &&
+      (await page.inputValue('.api-keys input[aria-label="Claude API key"]')) === '' &&
+      !(await page.content()).includes(fakeKey) &&
+      !JSON.stringify((await api('GET', '/api/keys')).data).includes(fakeKey) &&
+      (statSync(keyFile).mode & 0o777) === 0o600,
+    'API Save writes a 0600 key file, clears the field, and the key never comes back',
+  );
+  await page.locator('.api-keys').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: join(shots, 'api-keys.png') });
   await page.keyboard.press('Escape');
+  await page.click('.views button:has-text("Canvas")');
+  await page.click('button:has-text("+ Add")');
+  const claudeApi = '.add-menu button:has-text("Claude API chat")';
+  check(
+    (await page.isEnabled(claudeApi)) &&
+      (await page.isDisabled('.add-menu button:has-text("OpenAI API chat")')),
+    'API chats in + Add are enabled only for providers with a key',
+  );
+  await page.click(claudeApi);
+  const apiNode = await until(async () =>
+    (await api('GET', `/api/workspaces/${ws.id}/graph`)).data.nodes.find(
+      (n) => n.harness === 'api-anthropic',
+    ),
+  );
+  const modelField = apiNode && `.react-flow__node[data-id="${apiNode.id}"] .model-bar input`;
+  check(
+    !!apiNode &&
+      !!(await until(() => page.isVisible(modelField))) &&
+      (await page.getAttribute(modelField, 'placeholder')) === 'claude-opus-5-5',
+    'API chat node shows a model field with the default model',
+  );
+  if (apiNode) await page.screenshot({ path: join(shots, 'api-chat-node.png') });
+  if (apiNode) await api('DELETE', `/api/nodes/${apiNode.id}`);
+  await api('DELETE', '/api/keys/anthropic');
 
   // ---------------- Phase 8: remote/mobile view is read-only but can answer
   const remoteHeaders = {

@@ -74,6 +74,11 @@ export const ADD_ITEMS: { label: string; hint: string; spec: AddSpec }[] = [
     hint: 'driven, headless turns',
     spec: { type: 'agent-chat', harness: 'codex' },
   },
+  ...(['api-anthropic', 'api-openai', 'api-gemini'] as const).map((h) => ({
+    label: `${harnessLabel(h)} chat`,
+    hint: 'your API key, billed per token',
+    spec: { type: 'agent-chat' as const, harness: h },
+  })),
   { label: 'Note', hint: 'plain text', spec: { type: 'note' } },
   { label: 'Doc', hint: 'markdown', spec: { type: 'doc' } },
   {
@@ -93,6 +98,8 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
   const set = useStore((s) => s.set);
   const missing = (h?: HarnessId) =>
     !!h && h !== 'mock' && detections[h] && !detections[h]!.installed;
+  // API chats need a saved key; until detection says so they stay disabled.
+  const noKey = (h?: HarnessId) => !!h?.startsWith('api-') && !detections[h]?.installed;
 
   const list = (
     <div
@@ -103,20 +110,27 @@ export function AddNodeMenu({ inline }: { inline?: boolean }) {
       {ADD_ITEMS.map((it) => (
         <button
           key={it.label}
+          disabled={noKey(it.spec.harness)}
           onClick={() => {
             if (!inline) setOpen(false);
             const isAgent = it.spec.type === 'agent-terminal' || it.spec.type === 'agent-chat';
             void addNode({ ...it.spec, yolo: isAgent ? yolo : undefined });
           }}
           title={
-            missing(it.spec.harness)
-              ? `${harnessLabel(it.spec.harness)} is not installed — ${detections[it.spec.harness!]?.installHint ?? 'see Settings'}`
-              : it.hint
+            noKey(it.spec.harness)
+              ? `Add your key in Settings → API keys to use ${harnessLabel(it.spec.harness)}`
+              : missing(it.spec.harness)
+                ? `${harnessLabel(it.spec.harness)} is not installed — ${detections[it.spec.harness!]?.installHint ?? 'see Settings'}`
+                : it.hint
           }
         >
           <span>{it.label}</span>
           <span className="muted small">
-            {missing(it.spec.harness) ? 'not installed' : it.hint}
+            {noKey(it.spec.harness)
+              ? 'add a key in Settings'
+              : missing(it.spec.harness)
+                ? 'not installed'
+                : it.hint}
           </span>
         </button>
       ))}

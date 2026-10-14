@@ -1,7 +1,16 @@
 export type NodeType =
   'terminal' | 'agent-terminal' | 'agent-chat' | 'note' | 'doc' | 'browser' | 'external';
 export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'starting' | 'external';
-export type HarnessId = 'claude' | 'agy' | 'codex' | 'shell' | 'mock' | 'claude-desktop';
+export type HarnessId =
+  | 'claude'
+  | 'agy'
+  | 'codex'
+  | 'shell'
+  | 'mock'
+  | 'claude-desktop'
+  | 'api-anthropic'
+  | 'api-openai'
+  | 'api-gemini';
 
 export interface Workspace {
   id: string;
@@ -93,6 +102,8 @@ export interface Detection {
   notes?: string[];
   installHint?: string;
   loginHint?: string;
+  /** API harnesses: model IDs to suggest; the first is the default. */
+  models?: string[];
 }
 
 export type RunStatus =

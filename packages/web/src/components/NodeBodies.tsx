@@ -153,13 +153,51 @@ export function AgentTerminalBody({ node, primary }: { node: SNode; primary: boo
   );
 }
 
+/** Chat backed by an API key: a model field (blank = the provider's default) above the transcript. */
+export function ApiChatBody({ node }: { node: SNode }) {
+  const models = useStore((s) => s.detections[node.harness!]?.models) ?? [];
+  const readOnly = useStore((s) => s.readOnly);
+  const [model, setModel] = useState(String(node.data.model ?? ''));
+  const save = useDebouncedSave(node.id, 'model');
+  return (
+    <div className="doc nodrag nowheel">
+      <div className="doc-bar model-bar">
+        <label className="muted small">
+          Model{' '}
+          <input
+            className="mono"
+            list={`models-${node.id}`}
+            value={model}
+            placeholder={models[0] ?? 'default'}
+            readOnly={readOnly}
+            onChange={(e) => {
+              setModel(e.target.value.trim());
+              save(e.target.value.trim());
+            }}
+          />
+        </label>
+        <datalist id={`models-${node.id}`}>
+          {models.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </div>
+      <ChatView node={node} placeholder="Chat only: this model has no tools or file access." />
+    </div>
+  );
+}
+
 export function NodeBody({ node, primary = true }: { node: SNode; primary?: boolean }) {
   switch (node.type) {
     case 'terminal':
     case 'agent-terminal':
       return <AgentTerminalBody node={node} primary={primary} />;
     case 'agent-chat':
-      return <ChatView node={node} />;
+      return node.harness?.startsWith('api-') ? (
+        <ApiChatBody node={node} />
+      ) : (
+        <ChatView node={node} />
+      );
     case 'note':
       return <NoteBody node={node} />;
     case 'doc':

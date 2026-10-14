@@ -11,6 +11,7 @@ import { ChatService } from './chat/service.js';
 import { RunEngine } from './runs/engine.js';
 import { RoomService } from './rooms/service.js';
 import { harnesses } from './harness/index.js';
+import { bindApiHistory } from './harness/api.js';
 import type { Detection, HarnessId } from './harness/types.js';
 
 export interface Core {
@@ -34,6 +35,7 @@ export interface Core {
 
 export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
   const db = openDb(opts.dbPath);
+  bindApiHistory(db);
   const store = new Store(db);
   const bus = new Bus(store);
   const caps = new Capabilities(opts.coreUrl);
@@ -73,7 +75,8 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
       );
       core.detections = Object.fromEntries(entries);
       runs.available = entries
-        .filter(([id, d]) => d.installed && harnesses[id].runTurn)
+        // Runs need agents that can edit files; chat-only API harnesses stay out.
+        .filter(([id, d]) => d.installed && harnesses[id].runTurn && harnesses[id].isAgent)
         .map(([id]) => id);
       return core.detections;
     },

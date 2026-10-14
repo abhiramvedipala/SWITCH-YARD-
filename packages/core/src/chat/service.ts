@@ -4,6 +4,7 @@ import type { Bus } from '../bus/service.js';
 import { getHarness } from '../harness/index.js';
 import { coordinationBlurb } from '../harness/util.js';
 import { closeAgySessions } from '../harness/agy.js';
+import { dropApiHistory } from '../harness/api.js';
 import { hub } from '../events.js';
 import { randomId } from '../auth/token.js';
 import { getSetting } from '../db/index.js';
@@ -148,7 +149,9 @@ export class ChatService {
       : text;
     const system = isProject
       ? 'You are "Ask Switchyard", the assistant for a local workspace where several coding agents run side by side. Answer questions about the workspace and the code in it. Be concise.'
-      : coordinationBlurb(node.id, node.title);
+      : h.isAgent
+        ? coordinationBlurb(node.id, node.title)
+        : undefined; // chat-only API models have no bus tools to coordinate with
     let lastFlush = 0;
     try {
       const res = await h.runTurn({
@@ -156,6 +159,7 @@ export class ChatService {
         cwd: node.cwd ?? this.store.getWorkspace(node.workspaceId)!.rootDir,
         nodeId: isProject ? undefined : node.id,
         sessionId: node.sessionRef,
+        model: typeof node.data.model === 'string' ? node.data.model : undefined,
         yolo: node.yolo,
         allowedTools: getSetting(this.store.db, 'allowedTools', DEFAULT_ALLOWED_TOOLS),
         appendSystemPrompt: system,
@@ -218,6 +222,7 @@ export class ChatService {
     const n = this.store.getNode(nodeId);
     if (!n) return;
     closeAgySessions(nodeId);
+    dropApiHistory(this.store.db, n.sessionRef);
     this.store.updateNode(nodeId, { sessionRef: null, data: { ...n.data, messages: [] } });
   }
 }
