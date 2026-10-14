@@ -8,7 +8,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { chromium, webkit } from 'playwright-core';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const home = mkdtempSync(join(tmpdir(), 'sy-ui-home-'));
@@ -115,11 +115,20 @@ try {
       '/opt/pw-browsers/chromium',
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     ].find(existsSync);
-  browser = await chromium.launch({ executablePath: exe, headless: true });
+  // SWITCHYARD_UI_BROWSER=webkit runs the same checks in WebKit (Safari and the native Mac app).
+  browser =
+    process.env.SWITCHYARD_UI_BROWSER === 'webkit'
+      ? await webkit.launch({ headless: true })
+      : await chromium.launch({ executablePath: exe, headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   const errors = [];
-  page.on('pageerror', (e) => errors.push(String(e)));
+  // WebKit reports the spec's "ResizeObserver loop completed with undelivered notifications" as a page
+  // error. It is not a thrown exception: the observer (React Flow's node measuring) just runs again next
+  // frame. Every other page error still fails the check.
+  const benign = (e) =>
+    /^ResizeObserver loop completed with undelivered notifications\.?$/.test(e.message);
+  page.on('pageerror', (e) => benign(e) || errors.push(String(e)));
 
   // ---------------- Phase 0: login
   await page.goto(base);
