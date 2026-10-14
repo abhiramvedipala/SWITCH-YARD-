@@ -67,6 +67,9 @@ Other views and panels:
 
 - **Board:** shared tasks (Open / In progress / Done). Agents use `list_tasks`, `claim_task` and `complete_task`; you drag cards or "Assign to…" an agent.
 - **Runs:** goal → editable plan → approve → build → review (up to 3 rounds) → result card with evidence (files touched, `git diff --stat`, test output, or an honest "unverified"). Every step row carries a muted `1.2k tok · $0.03` badge and the card has a `Usage:` total (tokens only when the harness reports no price, e.g. Antigravity or the mock).
+  Claude Code reports a session's running `total_cost_usd` on every resumed
+  turn; Switchyard bills the per-turn difference per session and keeps the raw
+  figure in `usage.reported_cost_usd`. Token counts are per turn.
 - **Needs you:** questions from `ask_user`, permission prompts read off the screen, and idle agents with unread messages. Each item has a reply box.
 - **Rooms:** one conversation with several AIs at once. Add Claude, Codex, Antigravity, an API-key model or the mock as participants; talk to everyone or `@name` one. Modes: everyone / only @mentioned / one after another. Seed a room from an imported Claude.ai, ChatGPT or Claude Code conversation. Canvas agents join with the bus tools `list_rooms`, `read_room`, `post_to_room`. Stop halts every answer.
 - **Ask Switchyard:** project chat that sees a snapshot of the canvas. It defaults to Antigravity to save Claude usage.
