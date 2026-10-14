@@ -12,6 +12,7 @@ process.env.SWITCHYARD_SCRATCH_ROOT = join(
 const { runBusScenario } = await import('./scenario.js');
 const { runRunsScenario } = await import('./runs-scenario.js');
 const { runPersistentScenario } = await import('./persistent-scenario.js');
+const { runRoomsScenario } = await import('./rooms-scenario.js');
 
 let failed = false;
 const check = (cond: boolean, msg: string) => {
@@ -21,7 +22,7 @@ const check = (cond: boolean, msg: string) => {
 
 console.log('== bus (Phase 3 DoD) ==');
 const r = await runBusScenario((s) => console.log(`  ${s}`));
-check(r.tools.length === 13, `bus-mcp exposes 13 tools (${r.tools.length})`);
+check(r.tools.length === 16, `bus-mcp exposes 16 tools (${r.tools.length})`);
 check(
   r.reply.status === 'replied' && r.reply.body === 'pong',
   'A received B\'s "pong" via wait_for_reply',
@@ -77,5 +78,22 @@ check(
   `F8 run: build + review-fix turns share one agy process (${f8.runPrompts} prompts, ${f8.runSpawns} spawn)`,
 );
 check(f8.runStdinClosed, `F8 run end (${f8.runStatus}) closes the step session`);
+
+console.log('== rooms (two mock participants + a canvas agent over bus-mcp) ==');
+const rm = await runRoomsScenario((s) => console.log(`  ${s}`));
+check(
+  rm.listed.length === 1 && rm.listed[0]!.roomId === rm.roomId,
+  'list_rooms shows the room of the agent’s workspace',
+);
+check(rm.afterFyi === 0, 'an agent post without an @mention starts no participant');
+check(
+  rm.afterMention.length === 1 && rm.afterMention[0]!.startsWith('Mock B:'),
+  'an agent @mention starts only that participant',
+);
+check(
+  rm.read.length === 5 && rm.read.filter((m) => m.authorKind === 'participant').length === 3,
+  `read_room since= returns what came after (${rm.read.length} messages)`,
+);
+check(rm.usageTurns === 3, `usage recorded per participant turn (${rm.usageTurns})`);
 
 process.exit(failed ? 1 : 0);

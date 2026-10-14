@@ -55,6 +55,7 @@ export const mock: Harness = {
         prompt: opts.prompt,
         schema: opts.schema ?? null,
         sessionId: opts.sessionId ?? null,
+        system: opts.appendSystemPrompt ?? null,
       }),
       onLine: (obj) => {
         if (obj.kind === 'result') {

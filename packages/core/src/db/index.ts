@@ -127,6 +127,45 @@ const MIGRATIONS: string[] = [
   `,
   // F9: which run step a turn belonged to, so step rows can show their own usage.
   `ALTER TABLE usage ADD COLUMN step_id TEXT;`,
+  // Rooms: one shared conversation between the human and several AI participants (each one a harness).
+  // seen_seq = rowid of the newest message already put in that participant's prompt.
+  `
+  CREATE TABLE rooms (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'all' CHECK (mode IN ('all','mention','round')),
+    allow_own_folder INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX rooms_ws ON rooms(workspace_id);
+  CREATE TABLE room_participants (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    harness TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    session_ref TEXT,
+    node_id TEXT,
+    yolo INTEGER NOT NULL DEFAULT 0,
+    seen_seq INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX room_participants_room ON room_participants(room_id);
+  CREATE TABLE room_messages (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    author_kind TEXT NOT NULL CHECK (author_kind IN ('human','participant','agent','import')),
+    author_id TEXT,
+    author_name TEXT NOT NULL,
+    text TEXT NOT NULL,
+    reply_to TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX room_messages_room ON room_messages(room_id);
+  ALTER TABLE usage ADD COLUMN room_id TEXT;
+  ALTER TABLE usage ADD COLUMN participant_id TEXT;
+  CREATE INDEX usage_room ON usage (room_id);
+  `,
 ];
 
 export function openDb(path: string = DB_PATH): Db {

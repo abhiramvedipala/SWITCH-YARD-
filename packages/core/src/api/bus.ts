@@ -182,6 +182,61 @@ export function registerBusRoutes(app: FastifyInstance, core: Core): void {
       return bus.askUser(self, b);
     }),
   );
+  // Rooms: an agent sees only the rooms of its own workspace; anything else is "unknown room".
+  const roomFor = (self: string, roomId: string) => {
+    const room = core.rooms.get(roomId);
+    if (!room || room.workspaceId !== core.store.getNode(self)!.workspaceId)
+      throw new BusError('unknown_room', 'no such room in your workspace', 404);
+    return room;
+  };
+  app.get(
+    '/bus/rooms',
+    wrap((_req, self) => ({
+      rooms: core.rooms.list(core.store.getNode(self)!.workspaceId).map((r) => ({
+        roomId: r.id,
+        title: r.title,
+        mode: r.mode,
+        participants: core.rooms.participants(r.id).map((p) => ({
+          name: p.displayName,
+          harness: p.harness,
+        })),
+      })),
+    })),
+  );
+  app.get(
+    '/bus/rooms/:roomId/messages',
+    wrap((req, self) => {
+      const room = roomFor(self, (req.params as { roomId: string }).roomId);
+      const since = (req.query as { since?: string }).since;
+      return {
+        messages: core.rooms.messages(room.id, since || undefined, 200).map((m) => ({
+          messageId: m.id,
+          author: m.authorName,
+          authorKind: m.authorKind,
+          text: m.text,
+          createdAt: m.createdAt,
+        })),
+      };
+    }),
+  );
+  app.post(
+    '/bus/rooms/:roomId/messages',
+    wrap((req, self) => {
+      const room = roomFor(self, (req.params as { roomId: string }).roomId);
+      const { text } = z
+        .object({
+          text: z
+            .string()
+            .trim()
+            .min(1)
+            .max(64 * 1024),
+        })
+        .parse(req.body);
+      const n = core.store.getNode(self)!;
+      const m = core.rooms.post(room.id, { kind: 'agent', id: n.id, name: n.title }, text);
+      return { messageId: m.id };
+    }),
+  );
   app.post(
     '/bus/agy/hook',
     wrap((req, self) => {

@@ -7,7 +7,8 @@ export type HubEvent =
   | { t: 'change'; entity: string; workspaceId?: string; id?: string }
   | { t: 'status'; nodeId: string; state: string }
   | { t: 'run'; runId: string; event: unknown }
-  | { t: 'chat'; nodeId: string; event: unknown };
+  | { t: 'chat'; nodeId: string; event: unknown }
+  | { t: 'room'; roomId: string; event: unknown };
 
 class Hub extends EventEmitter {
   emitHub(e: HubEvent): void {

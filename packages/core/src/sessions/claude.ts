@@ -1,4 +1,12 @@
-import { readdirSync, statSync, openSync, readSync, closeSync, existsSync } from 'node:fs';
+import {
+  readdirSync,
+  statSync,
+  openSync,
+  readSync,
+  closeSync,
+  existsSync,
+  readFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -103,6 +111,28 @@ export function summarizeClaudeTranscript(path: string): SessionSummary | null {
     mtime: st.mtimeMs,
     messageCount: count,
   };
+}
+
+/** The user/assistant text of a Claude Code transcript in order; tool calls and meta lines are skipped. */
+export function readClaudeTranscript(path: string): { role: 'user' | 'assistant'; text: string }[] {
+  const turns: { role: 'user' | 'assistant'; text: string }[] = [];
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    let obj: Record<string, unknown>;
+    try {
+      obj = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    const role = obj.type;
+    if ((role !== 'user' && role !== 'assistant') || obj.isMeta === true) continue;
+    const text = textOf((obj.message as { content?: unknown } | undefined)?.content).trim();
+    if (isNoise(text)) continue;
+    const last = turns.at(-1);
+    // An assistant reply is written as one line per content block: join them back into one turn.
+    if (last?.role === role) last.text += `\n${text}`;
+    else turns.push({ role, text });
+  }
+  return turns;
 }
 
 export function listClaudeSessions(limit = 300): SessionSummary[] {

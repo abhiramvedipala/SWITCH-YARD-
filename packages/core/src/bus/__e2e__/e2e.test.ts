@@ -16,7 +16,8 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
   it('Phase 3 DoD: request/response between connected mocks; unconnected node isolated', async () => {
     const { runBusScenario } = await import('./scenario.js');
     const r = await runBusScenario();
-    expect(r.tools).toHaveLength(13);
+    expect(r.tools).toHaveLength(16);
+    expect(r.tools).toEqual(expect.arrayContaining(['list_rooms', 'read_room', 'post_to_room']));
     expect(r.reply).toMatchObject({ status: 'replied', body: 'pong' });
     expect(r.cPeers).toEqual([]);
     expect(r.cInbox).toEqual([]);
@@ -56,4 +57,20 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
     expect(r.runPrompts).toBeGreaterThanOrEqual(2);
     expect(r.runStdinClosed).toBe(true);
   }, 90_000);
+
+  it('Rooms: two mock participants and a canvas agent posting through the real bus-mcp', async () => {
+    const { runRoomsScenario } = await import('./rooms-scenario.js');
+    const r = await runRoomsScenario();
+    expect(r.listed).toEqual([expect.objectContaining({ roomId: r.roomId })]);
+    expect(r.afterFyi).toBe(0);
+    expect(r.afterMention).toEqual(['Mock B: (mock) Mock B here; mentioned: yes; new lines: 2.']);
+    expect(r.read.map((m) => `${m.authorKind}:${m.author}`)).toEqual([
+      'agent:Builder',
+      'participant:Mock B',
+      'human:Human',
+      expect.stringMatching(/^participant:Mock [AB]$/),
+      expect.stringMatching(/^participant:Mock [AB]$/),
+    ]);
+    expect(r.usageTurns).toBe(3);
+  }, 60_000);
 });

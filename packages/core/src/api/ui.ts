@@ -20,7 +20,8 @@ import {
   closeAgySessions,
 } from '../harness/agy.js';
 import { DEFAULT_ALLOWED_TOOLS } from '../chat/service.js';
-import { listClaudeSessions } from '../sessions/claude.js';
+import { listClaudeSessions, readClaudeTranscript } from '../sessions/claude.js';
+import { drivableHarnesses, HUMAN_NAME } from '../rooms/service.js';
 import { listAgySessions } from '../sessions/agy.js';
 import { parseExport, conversationToMarkdown } from '../sessions/exports.js';
 import { runCapture } from '../harness/util.js';
@@ -74,10 +75,12 @@ const REMOTE_WRITE_ALLOW = [
   /^\/api\/questions\/[^/]+\/(answer|dismiss)$/,
   /^\/api\/nodes\/[^/]+\/reply$/,
   /^\/api\/permissions\/[^/]+\/decide$/,
+  // Rooms from the phone: read and post only (no new rooms, participants, mode changes or Stop).
+  /^\/api\/rooms\/[^/]+\/messages$/,
 ];
 
 export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps): void {
-  const { store, bus, nodes, chat, runs, monitor } = core;
+  const { store, bus, nodes, chat, runs, monitor, rooms } = core;
 
   app.addHook('preHandler', async (req, reply) => {
     if (!req.url.startsWith('/api/') || req.method === 'GET' || req.method === 'HEAD') return;
@@ -150,6 +153,7 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       return {
         detections: core.detections,
         available: runs.available,
+        drivable: drivableHarnesses(),
         agy: { mcpEntry: hasAgyMcpEntry(), hooks: hasAgyHooks(), permissions: allowRuleState() },
       };
     }),
@@ -565,12 +569,12 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
       return { count: items.length, byKind, hash };
     }),
   );
-  /** Spend so far: total, or for one node / run (`?nodeId=` / `?runId=`). */
+  /** Spend so far: total, or for one node / run / room (`?nodeId=` / `?runId=` / `?roomId=`). */
   app.get(
     '/api/usage',
     h((req) => {
-      const q = req.query as { nodeId?: string; runId?: string };
-      return usageSummary(core.db, { nodeId: q.nodeId, runId: q.runId });
+      const q = req.query as { nodeId?: string; runId?: string; roomId?: string };
+      return usageSummary(core.db, { nodeId: q.nodeId, runId: q.runId, roomId: q.roomId });
     }),
   );
   app.post(
@@ -723,6 +727,104 @@ export function registerUiRoutes(app: FastifyInstance, core: Core, deps: UiDeps)
   app.delete(
     '/api/runs/:id',
     h((req) => runs.delete(p<{ id: string }>(req).id)),
+  );
+
+  // ---------------------------------------------------------------- rooms
+  const ROOM_MODES = ['all', 'mention', 'round'] as const;
+  app.get(
+    '/api/workspaces/:id/rooms',
+    h((req) => ({ rooms: rooms.list(p<{ id: string }>(req).id) })),
+  );
+  app.post(
+    '/api/workspaces/:id/rooms',
+    h((req) => {
+      const b = z
+        .object({
+          title: z.string().max(100).optional(),
+          mode: z.enum(ROOM_MODES).optional(),
+          allowOwnFolder: z.boolean().optional(),
+        })
+        .parse(req.body ?? {});
+      return rooms.create(p<{ id: string }>(req).id, b);
+    }),
+  );
+  app.get(
+    '/api/rooms/:id',
+    h((req) => rooms.view(p<{ id: string }>(req).id)),
+  );
+  app.patch(
+    '/api/rooms/:id',
+    h((req) => {
+      const b = z
+        .object({
+          title: z.string().min(1).max(100).optional(),
+          mode: z.enum(ROOM_MODES).optional(),
+        })
+        .parse(req.body);
+      return rooms.update(p<{ id: string }>(req).id, b);
+    }),
+  );
+  app.delete(
+    '/api/rooms/:id',
+    h((req) => rooms.delete(p<{ id: string }>(req).id)),
+  );
+  app.post(
+    '/api/rooms/:id/participants',
+    h((req) => {
+      const b = z
+        .object({ harness: z.string(), displayName: z.string(), yolo: z.boolean().optional() })
+        .parse(req.body);
+      return rooms.addParticipant(p<{ id: string }>(req).id, b);
+    }),
+  );
+  app.delete(
+    '/api/rooms/:id/participants/:pid',
+    h((req) => {
+      const { id, pid } = p<{ id: string; pid: string }>(req);
+      rooms.removeParticipant(id, pid);
+    }),
+  );
+  app.post(
+    '/api/rooms/:id/messages',
+    h((req) => {
+      const { text } = z.object({ text: z.string().trim().min(1).max(100_000) }).parse(req.body);
+      return rooms.post(
+        p<{ id: string }>(req).id,
+        { kind: 'human', id: null, name: HUMAN_NAME },
+        text,
+      );
+    }),
+  );
+  app.post(
+    '/api/rooms/:id/stop',
+    h((req) => rooms.stop(p<{ id: string }>(req).id)),
+  );
+  /** Seed from a Claude Code session (by id, from the import listing) or one conversation of an export file. */
+  app.post(
+    '/api/rooms/:id/seed',
+    { bodyLimit: 200 * 1024 * 1024 },
+    h((req) => {
+      const b = z
+        .object({
+          claudeSessionId: z.string().optional(),
+          json: z.string().optional(),
+          index: z.number().int().min(0).optional(),
+        })
+        .parse(req.body);
+      const id = p<{ id: string }>(req).id;
+      if (b.claudeSessionId) {
+        // Only sessions the import dialog lists: the client names an id, never a path.
+        const s = listClaudeSessions().find((x) => x.sessionId === b.claudeSessionId);
+        if (!s?.path) throw new Error('unknown Claude Code session');
+        const turns = readClaudeTranscript(s.path);
+        return { turns: rooms.seed(id, { title: s.title, source: 'Claude Code', turns }) };
+      }
+      if (b.json === undefined || b.index === undefined)
+        throw new Error('pick a Claude Code session or one conversation from an export file');
+      const c = parseExport(JSON.parse(b.json))[b.index];
+      if (!c) throw new Error('no conversation at that index');
+      return { turns: rooms.seed(id, { title: c.title, source: c.source, turns: c.turns }) };
+    }),
   );
 
   // ---------------------------------------------------------------- sessions

@@ -36,18 +36,27 @@ export function parseUsage(raw: unknown): { costUsd: number; input: number; outp
 /** One row per finished turn. Cheap: a single insert, no polling. */
 export function recordUsage(
   db: Db,
-  ctx: { harness: string; nodeId?: string | null; runId?: string | null; stepId?: string | null },
+  ctx: {
+    harness: string;
+    nodeId?: string | null;
+    runId?: string | null;
+    stepId?: string | null;
+    roomId?: string | null;
+    participantId?: string | null;
+  },
   res: Pick<TurnResult, 'usage'>,
 ): void {
   const { costUsd, input, output } = parseUsage(res.usage);
   db.prepare(
-    'INSERT INTO usage (ts, harness, node_id, run_id, step_id, cost_usd, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO usage (ts, harness, node_id, run_id, step_id, room_id, participant_id, cost_usd, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?,?,?)',
   ).run(
     Date.now(),
     ctx.harness,
     ctx.nodeId ?? null,
     ctx.runId ?? null,
     ctx.stepId ?? null,
+    ctx.roomId ?? null,
+    ctx.participantId ?? null,
     costUsd,
     input,
     output,
@@ -67,10 +76,17 @@ const add = (into: UsageTotals, r: UsageTotals): UsageTotals => {
 
 export function usageSummary(
   db: Db,
-  where: { nodeId?: string; runId?: string } = {},
+  where: { nodeId?: string; runId?: string; roomId?: string } = {},
 ): { total: UsageTotals; byHarness: UsageRow[] } {
-  const clause = where.nodeId ? 'WHERE node_id = ?' : where.runId ? 'WHERE run_id = ?' : '';
-  const args = where.nodeId ? [where.nodeId] : where.runId ? [where.runId] : [];
+  const [col, val] = where.nodeId
+    ? ['node_id', where.nodeId]
+    : where.runId
+      ? ['run_id', where.runId]
+      : where.roomId
+        ? ['room_id', where.roomId]
+        : [null, null];
+  const clause = col ? `WHERE ${col} = ?` : '';
+  const args = val ? [val] : [];
   const rows = db
     .prepare(`SELECT harness, ${SUMS} FROM usage ${clause} GROUP BY harness`)
     .all(...args) as UsageRow[];

@@ -9,6 +9,7 @@ import { HookRouter } from './bus/hooks.js';
 import { PermissionBroker } from './status/permissions.js';
 import { ChatService } from './chat/service.js';
 import { RunEngine } from './runs/engine.js';
+import { RoomService } from './rooms/service.js';
 import { harnesses } from './harness/index.js';
 import type { Detection, HarnessId } from './harness/types.js';
 
@@ -25,6 +26,7 @@ export interface Core {
   permissions: PermissionBroker;
   chat: ChatService;
   runs: RunEngine;
+  rooms: RoomService;
   coreUrl: string;
   detections: Partial<Record<HarnessId, Detection>>;
   refreshDetections(): Promise<Partial<Record<HarnessId, Detection>>>;
@@ -43,6 +45,7 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
   const hooks = new HookRouter(store, bus, monitor, permissions);
   const chat = new ChatService(store, bus);
   const runs = new RunEngine(store);
+  const rooms = new RoomService(store);
   const notifier = new MacNotifier({
     attention: () => monitor.attention(),
     enabled: () => getSetting<unknown>(db, 'macNotifications', false) === true,
@@ -59,6 +62,7 @@ export function createCore(opts: { dbPath?: string; coreUrl: string }): Core {
     permissions,
     chat,
     runs,
+    rooms,
     coreUrl: opts.coreUrl,
     detections: {},
     async refreshDetections() {

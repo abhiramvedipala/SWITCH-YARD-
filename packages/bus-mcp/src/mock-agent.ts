@@ -16,6 +16,8 @@ interface TurnInput {
   prompt: string;
   schema: { properties?: Record<string, unknown> } | null;
   sessionId: string | null;
+  /** The turn's appendSystemPrompt (Rooms put the participant's name and the other participants here). */
+  system?: string | null;
 }
 
 function out(obj: unknown) {
@@ -105,6 +107,34 @@ function reviewCwd() {
   };
 }
 
+/**
+ * Room turn: one deterministic line tests can route on. "loop" in the newest line makes the mock @mention the
+ * participant who wrote it (or the first other one), so two mocks would ping-pong forever without the chain cap.
+ * "slow" makes it think for 20 s so Stop can be tested.
+ */
+async function roomReply(me: string, prompt: string, system: string, sessionId: string) {
+  const lines = prompt.split('\n').filter((l) => /^\[[^\]]+\]: /.test(l));
+  const last = lines.at(-1) ?? '';
+  const mentioned = prompt.toLowerCase().includes(`@${me.toLowerCase()}`);
+  if (/\bslow\b/i.test(last)) {
+    for (let i = 0; i < 40; i++) {
+      out({ kind: 'text', delta: i ? '.' : '(mock) thinking' });
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+  let reply = `(mock) ${me} here; mentioned: ${mentioned ? 'yes' : 'no'}; new lines: ${lines.length}.`;
+  if (/\bloop\b/i.test(last)) {
+    const others = [
+      ...(system.match(/Other participants: (.*)/)?.[1] ?? '').matchAll(/@([^,(]+?) \(/g),
+    ].map((m) => m[1]!);
+    const author = last.match(/^\[([^\]]+)\]/)?.[1];
+    const target = author && others.includes(author) ? author : others[0];
+    if (target) reply += ` @${target} loop`;
+  }
+  await streamText(reply);
+  out({ kind: 'result', ok: true, text: reply, sessionId });
+}
+
 async function driven() {
   let raw = '';
   for await (const chunk of process.stdin) raw += chunk;
@@ -136,6 +166,11 @@ async function driven() {
     return;
   }
   const p = input.prompt;
+  const room = input.system?.match(/You are "([^"]+)", one participant in a Switchyard Room/);
+  if (room) {
+    await roomReply(room[1]!, p, input.system!, sessionId);
+    return;
+  }
   if (/reviewer requested changes/i.test(p)) {
     if (existsSync(join(cwd, 'hello.py'))) {
       writeFileSync(join(cwd, 'hello.py'), HELLO_V2);
