@@ -16,8 +16,9 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
   it('Phase 3 DoD: request/response between connected mocks; unconnected node isolated', async () => {
     const { runBusScenario } = await import('./scenario.js');
     const r = await runBusScenario();
-    expect(r.tools).toHaveLength(19);
+    expect(r.tools).toHaveLength(20);
     expect(r.tools).toContain('whoami');
+    expect(r.tools).toContain('wait_for_inbox');
     expect(r.tools).toEqual(expect.arrayContaining(['list_rooms', 'read_room', 'post_to_room']));
     expect(r.tools).toEqual(expect.arrayContaining(['join_switchyard', 'leave_switchyard']));
     expect(r.reply).toMatchObject({ status: 'replied', body: 'pong' });
@@ -89,6 +90,12 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
     expect(r.gpaInbox).toEqual([expect.objectContaining({ body: 'what grade?' })]);
     expect(r.essayInbox).toEqual([]);
     expect(r.reply).toMatchObject({ status: 'replied', body: 'B+', from: 'claude-desktop:gpa' });
+    expect(r.standby).toEqual({
+      messages: [expect.objectContaining({ body: 'still there?' })],
+      timedOut: false,
+    });
+    expect(r.standbyMs).toBeGreaterThanOrEqual(250);
+    expect(r.standbyMs).toBeLessThan(5000);
     expect(r.essayError).toMatch(/not_connected/);
     expect(r.foreignAsError).toMatch(/unauthorized/);
     expect(r.left).toEqual({ nodeId: 'claude-desktop:essay', left: true });

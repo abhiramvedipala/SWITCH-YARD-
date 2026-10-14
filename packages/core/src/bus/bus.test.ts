@@ -231,3 +231,62 @@ describe('bus: ask_user and status', () => {
     expect(() => bus.sendMessage(c.id, { peerId: 'user', intent: 'notify', body: 'x' })).toThrow();
   });
 });
+
+describe('bus: wait_inbox (stand-by long-poll)', () => {
+  const listeners = (bus: Bus) => bus['signals'].listenerCount('message');
+
+  it('resolves at once when a message already waits, marking it delivered like check_inbox', async () => {
+    const { bus, a, b } = setup();
+    bus.sendMessage(a.id, { peerId: b.id, intent: 'request', body: 'now' });
+    const r = await bus.waitForInbox(b.id, 5000);
+    expect(r.timedOut).toBe(false);
+    expect(r.messages).toEqual([
+      expect.objectContaining({ from: a.id, body: 'now', needsReply: true }),
+    ]);
+    expect(bus.checkInbox(b.id)).toEqual([]);
+  });
+
+  it('wakes as soon as a message arrives during the wait (real timers)', async () => {
+    const { bus, a, b } = setup();
+    const t0 = Date.now();
+    const p = bus.waitForInbox(b.id, 5000);
+    setTimeout(() => bus.sendMessage(a.id, { peerId: b.id, intent: 'notify', body: 'later' }), 20);
+    const r = await p;
+    expect(r.messages.map((m) => m.body)).toEqual(['later']);
+    expect(Date.now() - t0).toBeLessThan(300);
+  });
+
+  it('times out with timedOut:true and an empty list', async () => {
+    const { bus, b } = setup();
+    expect(await bus.waitForInbox(b.id, 50)).toEqual({ messages: [], timedOut: true });
+  });
+
+  it('a message to another node does not wake it', async () => {
+    const { bus, a, b, c } = setup();
+    const p = bus.waitForInbox(c.id, 80);
+    setTimeout(
+      () => bus.sendMessage(a.id, { peerId: b.id, intent: 'notify', body: 'not for c' }),
+      10,
+    );
+    expect(await p).toEqual({ messages: [], timedOut: true });
+    expect(bus.checkInbox(b.id).map((m) => m.body)).toEqual(['not for c']);
+  });
+
+  it('a client that hangs up ends the wait, frees its listener and reads nothing', async () => {
+    const { bus, a, b } = setup();
+    const base = listeners(bus);
+    const gone = new AbortController();
+    const p = bus.waitForInbox(b.id, 5000, gone.signal);
+    expect(listeners(bus)).toBe(base + 1);
+    gone.abort();
+    expect(await p).toEqual({ messages: [], timedOut: true });
+    expect(listeners(bus)).toBe(base);
+    // Already gone before the wait starts: the waiting message is not marked delivered either.
+    bus.sendMessage(a.id, { peerId: b.id, intent: 'notify', body: 'kept' });
+    expect(await bus.waitForInbox(b.id, 5000, gone.signal)).toEqual({
+      messages: [],
+      timedOut: true,
+    });
+    expect(bus.checkInbox(b.id).map((m) => m.body)).toEqual(['kept']);
+  });
+});

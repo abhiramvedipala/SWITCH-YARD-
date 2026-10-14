@@ -75,6 +75,24 @@ export async function runDesktopScenario(log: (s: string) => void = () => {}) {
     const reply = await waiting;
     log(`Builder wait_for_reply -> ${JSON.stringify(reply)}`);
 
+    // Stand-by: GPA blocks in wait_for_inbox over its real bus-mcp; Builder messages it 300 ms later.
+    const standbyStart = Date.now();
+    const [standby] = await Promise.all([
+      desktop.call<{ messages: { from: string; body: string }[]; timedOut: boolean }>(
+        'wait_for_inbox',
+        { as: 'GPA', timeoutSec: 20 },
+      ),
+      new Promise((r) => setTimeout(r, 300)).then(() =>
+        builder.call('message_peer', {
+          peerId: gpa.nodeId,
+          intent: 'notify',
+          body: 'still there?',
+        }),
+      ),
+    ]);
+    const standbyMs = Date.now() - standbyStart;
+    log(`GPA wait_for_inbox -> ${JSON.stringify(standby)} after ${standbyMs} ms`);
+
     const errorOf = async (fn: () => Promise<unknown>) => {
       try {
         await fn();
@@ -105,6 +123,8 @@ export async function runDesktopScenario(log: (s: string) => void = () => {}) {
       gpaInbox,
       essayInbox,
       reply,
+      standby,
+      standbyMs,
       essayError,
       foreignAsError,
       left,

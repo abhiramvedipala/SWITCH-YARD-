@@ -24,11 +24,16 @@ const check = (cond: boolean, msg: string) => {
 console.log('== bus (Phase 3 DoD) ==');
 const r = await runBusScenario((s) => console.log(`  ${s}`));
 check(
-  r.tools.length === 19 &&
-    ['whoami', 'list_rooms', 'read_room', 'post_to_room', 'join_switchyard'].every((t) =>
-      r.tools.includes(t),
-    ),
-  `bus-mcp exposes 19 tools incl. whoami, the room tools and join_switchyard (${r.tools.length})`,
+  r.tools.length === 20 &&
+    [
+      'whoami',
+      'list_rooms',
+      'read_room',
+      'post_to_room',
+      'join_switchyard',
+      'wait_for_inbox',
+    ].every((t) => r.tools.includes(t)),
+  `bus-mcp exposes 20 tools incl. whoami, the room tools, join_switchyard and wait_for_inbox (${r.tools.length})`,
 );
 check(
   r.reply.status === 'replied' && r.reply.body === 'pong',
@@ -116,6 +121,14 @@ check(
 check(
   cd.reply.status === 'replied' && cd.reply.body === 'B+' && cd.reply.from === 'claude-desktop:gpa',
   'Builder → request → GPA (as:GPA) → response → Builder wait_for_reply got "B+"',
+);
+check(
+  cd.standby.timedOut === false &&
+    cd.standby.messages.length === 1 &&
+    cd.standby.messages[0]!.body === 'still there?' &&
+    cd.standbyMs >= 250 &&
+    cd.standbyMs < 5000,
+  `GPA stood by in wait_for_inbox and woke on Builder's message after ${cd.standbyMs} ms`,
 );
 check(
   /unauthorized/.test(cd.foreignAsError) && /not_connected/.test(cd.essayError),

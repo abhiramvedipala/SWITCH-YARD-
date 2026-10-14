@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -423,6 +424,55 @@ describe('Claude Desktop identity (core + real bus-mcp)', () => {
     await bus('POST', '/bus/summary', { text: 'grading' }, 'GPA');
     expect(built.core.store.getNode(GPA)!.summary).toBe('grading');
     expect(built.core.store.getNode('claude-desktop')!.summary).toBe('');
+  });
+
+  it('wait_inbox stands by as the chat; the shared 401 for anyone else; a hang-up frees the listener', async () => {
+    const t0 = Date.now();
+    const waiting = bus('POST', '/bus/wait_inbox', { timeoutMs: 10_000 }, 'GPA');
+    setTimeout(
+      () => built.core.bus.sendMessage(peer, { peerId: GPA, intent: 'notify', body: 'ping' }),
+      100,
+    );
+    const r = await waiting;
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({
+      messages: [expect.objectContaining({ from: peer, body: 'ping' })],
+      timedOut: false,
+    });
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect((await bus('POST', '/bus/wait_inbox', { timeoutMs: 50 }, 'GPA')).json()).toEqual({
+      messages: [],
+      timedOut: true,
+    });
+    const foreign = await bus('POST', '/bus/wait_inbox', {}, 'GPA', peer, peerCap);
+    expect(foreign.statusCode).toBe(401);
+    expect(foreign.json()).toEqual(UNAUTHORIZED);
+
+    // A real socket that hangs up mid-wait: the wait ends and its wake-up listener goes with it.
+    const signals = built.core.bus['signals'];
+    const base = signals.listenerCount('message');
+    const req = http.request({
+      host: '127.0.0.1',
+      port,
+      path: '/bus/wait_inbox',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-switchyard-node': 'claude-desktop',
+        'x-switchyard-cap': rf().capability,
+        'x-switchyard-as': 'GPA',
+      },
+    });
+    req.on('error', () => undefined);
+    req.end(JSON.stringify({ timeoutMs: 30_000 }));
+    await vi.waitFor(() => expect(signals.listenerCount('message')).toBe(base + 1));
+    req.destroy();
+    await vi.waitFor(() => expect(signals.listenerCount('message')).toBe(base));
+    // ...and a message that lands afterwards waits for the chat's next call.
+    built.core.bus.sendMessage(peer, { peerId: GPA, intent: 'notify', body: 'after hang-up' });
+    expect((await bus('POST', '/bus/inbox', {}, 'GPA')).json().messages).toEqual([
+      expect.objectContaining({ body: 'after hang-up' }),
+    ]);
   });
 
   it('unread messages to a chat show in Needs you with the relay instruction, with no PTY nudge', async () => {
