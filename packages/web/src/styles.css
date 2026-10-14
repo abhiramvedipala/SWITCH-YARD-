@@ -470,6 +470,14 @@ label.check {
 .menu button:hover {
   background: #222937;
 }
+.menu button:disabled,
+.add-grid button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.menu button:disabled:hover {
+  background: none;
+}
 .menu button.danger {
   color: var(--danger);
 }
