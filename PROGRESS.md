@@ -215,7 +215,9 @@ codex login status                 # should print the ChatGPT login and exit 0
 
 Then Settings → **Re-check**: "Codex (ChatGPT)" shows installed. First real use: + Add → **Codex chat**, send `reply with the single word pong`. Paste back the reply and anything odd (an approval prompt, a `--config` error, a git-repo error).
 
-### OWNER CHECK CD — connect a Claude Desktop chat
+### OWNER CHECK CD — connect a Claude Desktop chat — **PASS (mechanism) 2026-10-14**
+
+Owner clicked Connect (workspace iNotch); Claude Desktop → Developer lists `switchyard` as Running with the expected command, args and env; a real `whoami` through that server returned `{"nodeId":"claude-desktop","workspaceId":"6KWunses834T"}`. Still open: a chat following "Join Switchyard as <name>" (CD2).
 
 1. Start Switchyard from `~/switchyard` (the app). Settings → **Claude Desktop** → pick a workspace → **Connect**. The card should say "joined <workspace>" and "switchyard entry present".
 2. On that canvas, drag an edge from the new **Claude Desktop** node to each agent it may talk to.
