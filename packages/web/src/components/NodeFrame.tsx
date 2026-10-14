@@ -13,6 +13,7 @@ const TYPE_ICON: Record<string, string> = {
   note: '✎',
   doc: '¶',
   browser: '◎',
+  files: '▤',
   external: '◇',
 };
 
