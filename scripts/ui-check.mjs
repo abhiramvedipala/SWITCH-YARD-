@@ -784,7 +784,9 @@ try {
     !!baseMenu && !(await page.isVisible(`${baseSel} .menu button:text-is("Delete")`)),
     'CD the Claude Desktop node menu shows "Disconnect Claude Desktop…" instead of Delete',
   );
-  await page.hover(`${baseSel} .menu`); // the menu closes when the pointer leaves it
+  // The menu closes when the pointer leaves it; Chromium may already have closed it.
+  if (await page.isVisible(`${baseSel} .menu`))
+    await page.hover(`${baseSel} .menu`, { timeout: 3000 }).catch(() => {});
   await page.mouse.move(5, 5);
   await api('POST', `/api/nodes/${gpa.nodeId}/message`, { body: 'The build passed.' });
   if (!(await page.isVisible('.side .needs'))) await page.click('button:has-text("Needs you")');
