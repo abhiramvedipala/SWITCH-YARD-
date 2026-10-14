@@ -166,6 +166,38 @@ export interface Settings {
   agyPersistentSessions: boolean;
 }
 
+export type RoomMode = 'all' | 'mention' | 'round';
+
+export interface Room {
+  id: string;
+  workspaceId: string;
+  title: string;
+  mode: RoomMode;
+  createdAt: number;
+  participants?: number;
+  busy?: boolean;
+}
+
+export interface RoomParticipant {
+  id: string;
+  roomId: string;
+  harness: string;
+  displayName: string;
+  yolo: boolean;
+  working: boolean;
+  error: string | null;
+}
+
+export interface RoomMessage {
+  id: string;
+  roomId: string;
+  authorKind: 'human' | 'participant' | 'agent' | 'import';
+  authorId: string | null;
+  authorName: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface SessionSummary {
   harness: 'claude' | 'agy';
   sessionId: string;

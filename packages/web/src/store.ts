@@ -18,7 +18,7 @@ export interface AgyConfig {
   permissions: { bus: boolean; testCommands: boolean; writeDirs: string[] };
 }
 
-export type View = 'canvas' | 'board' | 'runs';
+export type View = 'canvas' | 'board' | 'runs' | 'rooms';
 export type Panel = 'none' | 'needs' | 'chat';
 export type Modal = 'none' | 'settings' | 'import' | 'workspace' | 'palette' | 'worktree';
 
@@ -34,6 +34,10 @@ interface State {
   attention: AttentionItem[];
   detections: Partial<Record<HarnessId, Detection>>;
   available: HarnessId[];
+  /** Harnesses that can run a headless turn (and so can be Room participants), installed or not. */
+  drivable: string[];
+  /** When set, the import dialog seeds this room instead of opening nodes. */
+  seedRoomId: string | null;
   agyConfig: AgyConfig;
   settings: Settings | null;
   view: View;
@@ -70,6 +74,8 @@ export const useStore = create<State>((set, get) => ({
   attention: [],
   detections: {},
   available: ['mock'],
+  drivable: ['mock'],
+  seedRoomId: null,
   agyConfig: {
     mcpEntry: false,
     hooks: false,
@@ -155,9 +161,15 @@ export const useStore = create<State>((set, get) => ({
     const r = await api.get<{
       detections: Partial<Record<HarnessId, Detection>>;
       available: HarnessId[];
+      drivable?: string[];
       agy: AgyConfig;
     }>(`/api/harnesses${refresh ? '?refresh=1' : ''}`);
-    set({ detections: r.detections, available: r.available, agyConfig: r.agy });
+    set({
+      detections: r.detections,
+      available: r.available,
+      drivable: r.drivable ?? get().drivable,
+      agyConfig: r.agy,
+    });
   },
   patchNodeLocal: (id, patch) =>
     set({ nodes: get().nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }),

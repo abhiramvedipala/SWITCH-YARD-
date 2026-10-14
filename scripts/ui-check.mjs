@@ -535,6 +535,102 @@ try {
     'P6 Ask Switchyard streams a reply (mock)',
   );
 
+  // ---------------- Rooms: two mock participants, @mention routing, everyone answering, Stop
+  await page.click('.views button:has-text("Rooms")');
+  await page.click('.room-list-head button:has-text("New room")');
+  await page.waitForSelector('.room-head');
+  for (const name of ['Mock A', 'Mock B']) {
+    await page.selectOption('.add-person select', 'mock');
+    await page.fill('.add-person input', name);
+    await page.click('.add-person button:has-text("Add")');
+    await until(() => page.isVisible(`.room-people .person:has-text("${name}")`));
+  }
+  const roomRec = (await api('GET', `/api/workspaces/${ws.id}/rooms`)).data.rooms[0];
+  const roomNow = async () => (await api('GET', `/api/rooms/${roomRec.id}`)).data;
+  const roomReplies = async () =>
+    (await roomNow()).messages.filter((m) => m.authorKind === 'participant').map((m) => m.text);
+  const roomSettled = async (n) =>
+    until(async () => {
+      const r = await roomNow();
+      return !r.busy && r.messages.filter((m) => m.authorKind === 'participant').length >= n;
+    }, 15_000);
+  check(
+    (await page.$$('.room-people .person')).length === 2 &&
+      (await roomNow()).participants.every((p) => p.harness === 'mock'),
+    'R created a room and added two mock participants from the UI',
+  );
+  await page.click('.room-composer textarea');
+  await page.keyboard.type('@Mock');
+  await until(() => page.isVisible('.mention-menu'));
+  // Same lesson as the + Add menu: every option must really be on top where it is drawn.
+  const mentionOk = await page.evaluate(() => {
+    const opts = [...document.querySelectorAll('.mention-menu button')];
+    return (
+      opts.length === 2 &&
+      opts.every((b) => {
+        const r = b.getBoundingClientRect();
+        return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      })
+    );
+  });
+  check(mentionOk, 'R @mention autocomplete lists both participants, unclipped');
+  await page.keyboard.press('Enter'); // picks Mock A
+  await page.keyboard.type('hello');
+  const typed = await page.inputValue('.room-composer textarea');
+  await page.keyboard.press('Enter');
+  await roomSettled(1);
+  await sleep(600);
+  const afterMention = await roomReplies();
+  const shown = !!(await until(() =>
+    page.isVisible('.rmsg-participant:has-text("Mock A here; mentioned: yes")'),
+  ));
+  check(
+    typed === '@Mock A hello' &&
+      afterMention.length === 1 &&
+      /Mock A here; mentioned: yes/.test(afterMention[0]) &&
+      shown,
+    `R "@Mock A hello" → only Mock A answers (typed ${JSON.stringify(typed)}, shown ${shown}, replies ${JSON.stringify(afterMention)})`,
+  );
+  await page.fill('.room-composer textarea', 'hello both');
+  await page.keyboard.press('Enter');
+  await roomSettled(3);
+  const afterAll = (await roomReplies()).slice(1);
+  check(
+    (await roomNow()).room.mode === 'all' &&
+      afterAll.length === 2 &&
+      afterAll.some((t) => t.startsWith('(mock) Mock A here')) &&
+      afterAll.some((t) => t.startsWith('(mock) Mock B here')),
+    'R no mention in "all" mode → both participants answer',
+  );
+  await page.fill('.room-composer textarea', '@Mock B slow');
+  await page.keyboard.press('Enter');
+  await until(() => page.isVisible('.rmsg-streaming:has-text("thinking")'), 8000);
+  await page.click('.room-stop');
+  const stopped = await until(async () => {
+    const r = await roomNow();
+    return !r.busy && r.messages.some((m) => /\(stopped\)$/.test(m.text));
+  }, 5000);
+  check(
+    !!stopped && !!(await until(async () => !(await page.isVisible('.room-stop')), 3000)),
+    'R Stop aborts the running turn (partial answer kept, marked stopped)',
+  );
+  await page.selectOption('.room-mode', 'mention');
+  check(
+    !!(await until(async () => (await roomNow()).room.mode === 'mention')),
+    'R mode selector switches the room to "Only @mentioned"',
+  );
+  await page.click('button:has-text("Seed from import")');
+  await page.click('.session:has-text("Refactor the parser") button:has-text("Seed room")');
+  check(
+    !!(await until(() => page.isVisible('.room-import:has-text("Imported conversation")'))),
+    'R Seed from import adds a Claude Code session as collapsed context',
+  );
+  await page.screenshot({ path: join(shots, 'rooms.png') });
+  check(
+    errors.length === 0,
+    `R Rooms view raised no page errors${errors.length ? `: ${errors[0]}` : ''}`,
+  );
+
   // ---------------- Phase 7: import dialog lists Claude sessions
   await page.click('button:has-text("Import sessions")');
   check(

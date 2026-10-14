@@ -13,6 +13,7 @@ import { Logo, StatusChip } from '../components/bits.js';
 // Loaded on demand: the first screen (canvas) shouldn't pay for views and dialogs you may never open.
 const Board = lazy(() => import('./Board.js').then((m) => ({ default: m.Board })));
 const Runs = lazy(() => import('./Runs.js').then((m) => ({ default: m.Runs })));
+const Rooms = lazy(() => import('./Rooms.js').then((m) => ({ default: m.Rooms })));
 const RunCard = lazy(() => import('./Runs.js').then((m) => ({ default: m.RunCard })));
 const ProjectChat = lazy(() =>
   import('../components/ProjectChat.js').then((m) => ({ default: m.ProjectChat })),
@@ -206,7 +207,7 @@ function TopBar() {
       </span>
       <WorkspacePicker />
       <nav className="views">
-        {(['canvas', 'board', 'runs'] as const).map((v) => (
+        {(['canvas', 'board', 'runs', 'rooms'] as const).map((v) => (
           <button
             key={v}
             className={`tab ${view === v ? 'active' : ''}`}
@@ -274,7 +275,7 @@ function NoWorkspace() {
 }
 
 function MobileShell() {
-  const [tab, setTab] = useState<'needs' | 'runs' | 'agents'>('needs');
+  const [tab, setTab] = useState<'needs' | 'runs' | 'agents' | 'rooms'>('needs');
   const attention = useStore((s) => s.attention);
   const runs = useStore((s) => s.runs);
   const nodes = useStore((s) => s.nodes);
@@ -297,9 +298,17 @@ function MobileShell() {
         <button className={tab === 'agents' ? 'active' : ''} onClick={() => setTab('agents')}>
           Agents
         </button>
+        <button className={tab === 'rooms' ? 'active' : ''} onClick={() => setTab('rooms')}>
+          Rooms
+        </button>
       </nav>
       <main className="mobile-main">
         {tab === 'needs' && <NeedsYou />}
+        {tab === 'rooms' && (
+          <Suspense fallback={null}>
+            <Rooms />
+          </Suspense>
+        )}
         {tab === 'runs' &&
           (runs.length ? (
             <Suspense fallback={null}>
@@ -386,6 +395,10 @@ export function Shell() {
           ) : s.view === 'board' ? (
             <Suspense fallback={null}>
               <Board />
+            </Suspense>
+          ) : s.view === 'rooms' ? (
+            <Suspense fallback={null}>
+              <Rooms />
             </Suspense>
           ) : (
             <Suspense fallback={null}>

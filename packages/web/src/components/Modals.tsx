@@ -535,6 +535,20 @@ export function ImportModal() {
   const set = useStore((s) => s.set);
   const wsId = useStore((s) => s.wsId);
   const notify = useStore((s) => s.notify);
+  // Rooms reuse this listing: with a room set, picking a session or conversation seeds that room.
+  const seedRoomId = useStore((s) => s.seedRoomId);
+  const close = () => set({ modal: 'none', seedRoomId: null });
+  const seed = async (bodies: Record<string, unknown>[]) => {
+    try {
+      let turns = 0;
+      for (const b of bodies)
+        turns += (await api.post<{ turns: number }>(`/api/rooms/${seedRoomId}/seed`, b)).turns;
+      close();
+      notify(`Room seeded with ${turns} imported turn${turns === 1 ? '' : 's'}`);
+    } catch (e) {
+      notify(String((e as Error).message), 'error');
+    }
+  };
   const [tab, setTab] = useState<ImportTab>('claude');
   const [claude, setClaude] = useState<SessionSummary[] | null>(null);
   const [agy, setAgy] = useState<{ sessions: SessionSummary[]; note?: string } | null>(null);
@@ -596,17 +610,29 @@ export function ImportModal() {
   };
 
   return (
-    <Modal title="Import my sessions" onClose={() => set({ modal: 'none' })} wide>
+    <Modal title={seedRoomId ? 'Seed room from import' : 'Import my sessions'} onClose={close} wide>
+      {seedRoomId && (
+        <p className="muted small">
+          The conversation is added to the room as collapsed context. Each participant gets it once,
+          in its next turn (the last 20,000 characters if it is longer).
+        </p>
+      )}
       <div className="tabs">
-        {(['claude', 'agy', 'export'] as ImportTab[]).map((t) => (
-          <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'claude'
-              ? 'Claude Code sessions'
-              : t === 'agy'
-                ? 'Antigravity conversations'
-                : 'Chat export file'}
-          </button>
-        ))}
+        {((seedRoomId ? ['claude', 'export'] : ['claude', 'agy', 'export']) as ImportTab[]).map(
+          (t) => (
+            <button
+              key={t}
+              className={`tab ${tab === t ? 'active' : ''}`}
+              onClick={() => setTab(t)}
+            >
+              {t === 'claude'
+                ? 'Claude Code sessions'
+                : t === 'agy'
+                  ? 'Antigravity conversations'
+                  : 'Chat export file'}
+            </button>
+          ),
+        )}
       </div>
       {tab === 'claude' && (
         <>
@@ -636,15 +662,17 @@ export function ImportModal() {
                 <button
                   className="btn btn-xs"
                   onClick={() =>
-                    resume({
-                      harness: 'claude',
-                      sessionId: s.sessionId,
-                      cwd: s.cwd ?? undefined,
-                      title: s.title.slice(0, 40),
-                    })
+                    seedRoomId
+                      ? seed([{ claudeSessionId: s.sessionId }])
+                      : resume({
+                          harness: 'claude',
+                          sessionId: s.sessionId,
+                          cwd: s.cwd ?? undefined,
+                          title: s.title.slice(0, 40),
+                        })
                   }
                 >
-                  Resume here
+                  {seedRoomId ? 'Seed room' : 'Resume here'}
                 </button>
               </div>
             ))}
@@ -744,6 +772,7 @@ export function ImportModal() {
                 className="btn"
                 disabled={picked.length === 0 || picked.length > 50}
                 onClick={async () => {
+                  if (seedRoomId) return seed(picked.map((index) => ({ json: exportJson, index })));
                   try {
                     await api.post(`/api/workspaces/${wsId}/import`, {
                       json: exportJson,
@@ -758,7 +787,9 @@ export function ImportModal() {
                   }
                 }}
               >
-                Import {picked.length || ''} as doc node{picked.length === 1 ? '' : 's'}
+                {seedRoomId
+                  ? `Seed room with ${picked.length || ''} conversation${picked.length === 1 ? '' : 's'}`
+                  : `Import ${picked.length || ''} as doc node${picked.length === 1 ? '' : 's'}`}
               </button>
             </>
           )}

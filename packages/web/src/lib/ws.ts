@@ -13,6 +13,19 @@ export type ServerEvent =
       nodeId: string;
       event: { type: string; replyId?: string; delta?: string; message?: unknown; tool?: unknown };
     }
+  | {
+      t: 'room';
+      roomId: string;
+      event: {
+        type: string;
+        participantId?: string;
+        replyId?: string;
+        delta?: string;
+        message?: unknown;
+        busy?: boolean;
+        error?: string | null;
+      };
+    }
   | { t: 'pong' };
 
 type Listener = (e: ServerEvent) => void;
