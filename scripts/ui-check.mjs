@@ -723,6 +723,30 @@ try {
   if (apiNode) await api('DELETE', `/api/nodes/${apiNode.id}`);
   await api('DELETE', '/api/keys/anthropic');
 
+  // ---------------- Other CLI agent: the dialog adds an `other` node running a plain command (no agent tool)
+  await page.click('button:has-text("+ Add")');
+  await page.click('.add-menu button:has-text("Other CLI agent")');
+  await page.waitForSelector('.custom-agent');
+  await page.selectOption('.custom-agent select', 'other');
+  await page.fill('.custom-agent input[aria-label="Command"]', 'bash');
+  await page.fill('.custom-agent input[aria-label="Arguments"]', "-c 'echo custom-ok; sleep 30'");
+  await page.click('.custom-agent button:has-text("Add terminal agent")');
+  const customNode = await until(async () =>
+    (await api('GET', `/api/workspaces/${ws.id}/graph`)).data.nodes.find(
+      (n) => n.harness === 'custom',
+    ),
+  );
+  check(
+    !!customNode && customNode.type === 'agent-terminal' && /^bash \d+$/.test(customNode.title),
+    `X "Other CLI agent…" dialog adds a custom terminal node (${customNode?.title})`,
+  );
+  const customOut =
+    customNode &&
+    (await until(async () => (await termText(customNode.id))?.includes('custom-ok'), 15_000));
+  check(!!customOut, 'X the custom node runs the typed command and shows its output');
+  await page.screenshot({ path: join(shots, 'custom-agent.png') });
+  if (customNode) await api('DELETE', `/api/nodes/${customNode.id}`);
+
   // ---------------- Phase 8: remote/mobile view is read-only but can answer
   const remoteHeaders = {
     'X-Forwarded-For': '100.101.102.103',
