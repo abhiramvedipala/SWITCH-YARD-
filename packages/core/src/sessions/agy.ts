@@ -1,7 +1,15 @@
-import { existsSync, openSync, readSync, closeSync, readdirSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  openSync,
+  readSync,
+  closeSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { SessionSummary } from './claude.js';
+import type { SessionSummary, TranscriptTurn } from './claude.js';
 
 /**
  * agy keeps one folder per conversation under ~/.gemini/antigravity-cli/brain/<conversation-id>/, with a
@@ -26,34 +34,74 @@ function readHead(path: string): string {
   }
 }
 
-function userText(obj: Record<string, unknown>): string | null {
-  const role = String(obj.role ?? obj.type ?? obj.source ?? '').toLowerCase();
-  if (role && !/user|human/.test(role)) return null;
-  const c = obj.content ?? obj.text ?? obj.message ?? obj.prompt;
-  if (typeof c === 'string') return c;
-  if (Array.isArray(c)) {
-    const t = c
-      .map((b) => (b && typeof b === 'object' ? String((b as { text?: unknown }).text ?? '') : ''))
-      .join(' ')
-      .trim();
-    return t || null;
-  }
-  return null;
+/**
+ * One transcript line as a turn, or null when it carries no text. The role is read from `role`, `type` or
+ * `source`; a line without one counts as the user's (that is what the title lookup always assumed).
+ */
+export function agyTurn(obj: unknown): TranscriptTurn | null {
+  if (!obj || typeof obj !== 'object') return null;
+  const o = obj as Record<string, unknown>;
+  const r = String(o.role ?? o.type ?? o.source ?? '').toLowerCase();
+  const role = /user|human/.test(r)
+    ? 'user'
+    : /assistant|model|agent/.test(r)
+      ? 'assistant'
+      : /tool|function/.test(r)
+        ? 'tool'
+        : r
+          ? null
+          : 'user';
+  if (!role) return null;
+  const c = o.content ?? o.text ?? o.message ?? o.prompt;
+  const text =
+    typeof c === 'string'
+      ? c
+      : Array.isArray(c)
+        ? c
+            .map((b) =>
+              b && typeof b === 'object' ? String((b as { text?: unknown }).text ?? '') : '',
+            )
+            .join(' ')
+            .trim()
+        : '';
+  if (!text.trim()) return null;
+  const ts = o.timestamp ?? o.time ?? o.created_at;
+  const at =
+    typeof ts === 'number'
+      ? ts > 1e12
+        ? ts
+        : ts * 1000
+      : typeof ts === 'string'
+        ? Date.parse(ts) || undefined
+        : undefined;
+  return { role, text, at };
 }
 
 export function titleFromTranscript(head: string): string | null {
   for (const line of head.split('\n').slice(0, 200)) {
     if (!line.trim()) continue;
     try {
-      const t = userText(JSON.parse(line) as Record<string, unknown>)
-        ?.replace(/\s+/g, ' ')
-        .trim();
-      if (t) return t.slice(0, 120);
+      const t = agyTurn(JSON.parse(line));
+      if (t?.role === 'user') return t.text.replace(/\s+/g, ' ').trim().slice(0, 120);
     } catch {
       // last line of a truncated head, or a non-JSON line
     }
   }
   return null;
+}
+
+/** Every turn of an agy transcript; lines that are not JSON objects with text are skipped. */
+export function readAgyTranscript(path: string): TranscriptTurn[] {
+  const turns: TranscriptTurn[] = [];
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    try {
+      const t = agyTurn(JSON.parse(line));
+      if (t) turns.push(t);
+    } catch {
+      // not JSON
+    }
+  }
+  return turns;
 }
 
 export async function listAgySessions(): Promise<{ sessions: SessionSummary[]; note?: string }> {

@@ -113,9 +113,31 @@ export function summarizeClaudeTranscript(path: string): SessionSummary | null {
   };
 }
 
-/** The user/assistant text of a Claude Code transcript in order; tool calls and meta lines are skipped. */
-export function readClaudeTranscript(path: string): { role: 'user' | 'assistant'; text: string }[] {
-  const turns: { role: 'user' | 'assistant'; text: string }[] = [];
+export interface TranscriptTurn {
+  role: 'user' | 'assistant' | 'tool';
+  /** A tool turn's text is `name: what` on its first line (the renderer keeps only that line). */
+  text: string;
+  at?: number;
+}
+
+/** One line for a tool call: its name and the argument a person would recognise it by. */
+export function toolLine(name: unknown, input: unknown): string {
+  const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const what = i.command ?? i.file_path ?? i.path ?? i.pattern ?? i.url ?? i.query ?? i.description;
+  const s = what === undefined ? JSON.stringify(i) : String(what);
+  return `${String(name ?? 'tool')}: ${s.split('\n')[0]!.slice(0, 160)}`;
+}
+
+/**
+ * The user/assistant text of a Claude Code transcript in order; meta lines and tool results are skipped.
+ * With `tools`, each tool call becomes a one-line `tool` turn (for hand-offs). Lines that are not JSON
+ * objects are ignored.
+ */
+export function readClaudeTranscript(
+  path: string,
+  opts: { tools?: boolean } = {},
+): TranscriptTurn[] {
+  const turns: TranscriptTurn[] = [];
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     let obj: Record<string, unknown>;
     try {
@@ -123,14 +145,24 @@ export function readClaudeTranscript(path: string): { role: 'user' | 'assistant'
     } catch {
       continue;
     }
+    if (!obj || typeof obj !== 'object') continue;
     const role = obj.type;
     if ((role !== 'user' && role !== 'assistant') || obj.isMeta === true) continue;
-    const text = textOf((obj.message as { content?: unknown } | undefined)?.content).trim();
+    const at =
+      typeof obj.timestamp === 'string' ? Date.parse(obj.timestamp) || undefined : undefined;
+    const content = (obj.message as { content?: unknown } | undefined)?.content;
+    if (opts.tools && Array.isArray(content)) {
+      for (const b of content as Array<Record<string, unknown> | null>) {
+        if (b?.type === 'tool_use')
+          turns.push({ role: 'tool', text: toolLine(b.name, b.input), at });
+      }
+    }
+    const text = textOf(content).trim();
     if (isNoise(text)) continue;
     const last = turns.at(-1);
     // An assistant reply is written as one line per content block: join them back into one turn.
     if (last?.role === role) last.text += `\n${text}`;
-    else turns.push({ role, text });
+    else turns.push({ role, text, at });
   }
   return turns;
 }
