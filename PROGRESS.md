@@ -132,6 +132,17 @@ npm start                     # note the token it prints
       won't edit without your OK. Example:
       `{"permissions":{"allow":["command(git)","command(regex:python3 -m pytest.*)"]}}`
 
+## Rooms: one conversation, several AIs (in flight 2026-10-14)
+
+Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversation, work at the same time and take instructions. Decisions are in DECISIONS.md (2026-10-14). Four parallel streams:
+
+- [ ] **Rooms core** — `rooms`, `room_participants`, `room_messages` tables; modes `all` / `mention` / `round`; per-participant CLI sessions that see only unseen lines; @mention chain cap; Stop; seed from an imported Claude.ai / ChatGPT export; bus tools `list_rooms` / `read_room` / `post_to_room`; Rooms view in the web UI; mock-driven tests + ui-checks in Chromium and WebKit.
+- [ ] **`codex` harness** — ChatGPT through OpenAI's Codex CLI on the owner's subscription (`codex exec` JSON events, resume, sandbox/approval flags, bypass only with YOLO); fake-binary tests. Codex is not installed yet → owner step.
+- [ ] **API-key harnesses** — `api-anthropic`, `api-openai`, `api-gemini`: chat-only, keys as 0600 files under `~/.switchyard/keys/`, official hosts only, local fake servers in tests. Opt-in exception to the no-outbound rule.
+- [ ] **Claude Desktop connector** — opt-in button writes only a `switchyard` entry to `claude_desktop_config.json` (.bak, Remove), stable identity `~/.switchyard/run/claude-desktop.json`, so a Claude Desktop chat can read and post into Rooms.
+
+Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
+
 ## Acceptance (real agents; one OWNER CHECK at a time, fresh `~/.switchyard/scratch` workspace each)
 
 Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, add a mock regression test, re-run only that check.
