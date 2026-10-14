@@ -30,6 +30,9 @@ const WorkspaceModal = lazy(() =>
 const WorktreeModal = lazy(() =>
   import('../components/Modals.js').then((m) => ({ default: m.WorktreeModal })),
 );
+const CustomAgentModal = lazy(() =>
+  import('../components/Modals.js').then((m) => ({ default: m.CustomAgentModal })),
+);
 const Palette = lazy(() =>
   import('../components/Palette.js').then((m) => ({ default: m.Palette })),
 );
@@ -368,6 +371,7 @@ export function Shell() {
         {s.modal === 'import' && <ImportModal />}
         {s.modal === 'workspace' && <WorkspaceModal />}
         {s.modal === 'worktree' && <WorktreeModal />}
+        {s.modal === 'custom' && <CustomAgentModal />}
         {s.modal === 'palette' && <Palette />}
       </Suspense>
       {s.toast && <div className={`toast toast-${s.toast.kind}`}>{s.toast.text}</div>}

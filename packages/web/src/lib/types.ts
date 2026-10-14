@@ -7,6 +7,7 @@ export type HarnessId =
   | 'codex'
   | 'shell'
   | 'mock'
+  | 'custom'
   | 'claude-desktop'
   | 'api-anthropic'
   | 'api-openai'
@@ -104,6 +105,21 @@ export interface Detection {
   loginHint?: string;
   /** API harnesses: model IDs to suggest; the first is the default. */
   models?: string[];
+  /** `custom` only: the preset table with install state. */
+  presets?: PresetInfo[];
+}
+
+export interface PresetInfo {
+  id: string;
+  label: string;
+  command: string;
+  args: string[];
+  install: string;
+  docs: string;
+  installed: boolean;
+  path?: string;
+  drivable: boolean;
+  bus: string;
 }
 
 export type RunStatus =

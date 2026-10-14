@@ -20,7 +20,8 @@ export interface AgyConfig {
 
 export type View = 'canvas' | 'board' | 'runs' | 'rooms';
 export type Panel = 'none' | 'needs' | 'chat';
-export type Modal = 'none' | 'settings' | 'import' | 'workspace' | 'palette' | 'worktree';
+export type Modal =
+  'none' | 'settings' | 'import' | 'workspace' | 'palette' | 'worktree' | 'custom';
 
 interface State {
   remote: boolean;
@@ -212,9 +213,11 @@ export function harnessLabel(h: string | null | undefined): string {
         ? 'Codex (ChatGPT)'
         : h === 'mock'
           ? 'Mock'
-          : h === 'shell'
-            ? 'Shell'
-            : h === 'claude-desktop'
-              ? 'Claude Desktop'
-              : (h ?? '');
+          : h === 'custom'
+            ? 'Other CLI agent'
+            : h === 'shell'
+              ? 'Shell'
+              : h === 'claude-desktop'
+                ? 'Claude Desktop'
+                : (h ?? '');
 }

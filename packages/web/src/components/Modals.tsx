@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import type { HarnessId, SessionSummary, Settings } from '../lib/types.js';
 import { harnessLabel, useStore } from '../store.js';
+import { addNode } from './AddNode.js';
 import { Modal, timeAgo } from './bits.js';
 
 // ------------------------------------------------------------------ settings
@@ -239,7 +240,7 @@ export function SettingsModal() {
     <Modal title="Settings" onClose={() => set({ modal: 'none' })} wide>
       <h3>Agents on this computer</h3>
       <div className="harness-list">
-        {(['claude', 'agy', 'codex', 'mock', 'shell'] as HarnessId[]).map((h) => {
+        {(['claude', 'agy', 'codex', 'mock', 'custom', 'shell'] as HarnessId[]).map((h) => {
           const d = detections[h];
           return (
             <div key={h} className="harness">
@@ -352,6 +353,22 @@ export function SettingsModal() {
                   your Claude settings)
                 </div>
               )}
+              {h === 'custom' &&
+                d?.presets
+                  ?.filter((p) => p.id !== 'other')
+                  .map((p) => (
+                    <div key={p.id} className="row wrap small">
+                      <span>{p.label}</span>
+                      <span className={`badge ${p.installed ? 'badge-ok' : 'badge-wait'}`}>
+                        {p.installed ? 'installed' : 'not installed'}
+                      </span>
+                      {p.installed ? (
+                        <span className="muted mono">{p.path}</span>
+                      ) : (
+                        <code>{p.install}</code>
+                      )}
+                    </div>
+                  ))}
             </div>
           );
         })}
@@ -625,6 +642,117 @@ export function WorktreeModal() {
         <button className="btn" onClick={go}>
           Create
         </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------ other CLI agent
+/** Any CLI agent: a preset (Aider, Goose, …) or a command the owner types. No YOLO switch: bypass flags are unknown here. */
+export function CustomAgentModal() {
+  const set = useStore((s) => s.set);
+  const presets = useStore((s) => s.detections.custom?.presets ?? []);
+  const wsRoot = useStore((s) => s.workspaces.find((w) => w.id === s.wsId)?.rootDir);
+  const { loadHarnesses } = useStore.getState();
+  const [id, setId] = useState('aider');
+  // null = not edited: the preset's own command/args show until the owner types.
+  const [cmd, setCmd] = useState<string | null>(null);
+  const [args, setArgs] = useState<string | null>(null);
+  useEffect(() => {
+    if (presets.length === 0) loadHarnesses().catch(() => undefined);
+  }, [presets.length, loadHarnesses]);
+  const p = presets.find((x) => x.id === id);
+  const command = cmd ?? p?.command ?? '';
+  const argv = args ?? (p?.args ?? []).join(' ');
+  const pick = (next: string) => {
+    setId(next);
+    setCmd(null);
+    setArgs(null);
+  };
+  const go = async (type: 'agent-terminal' | 'agent-chat') => {
+    await addNode({
+      type,
+      harness: 'custom',
+      data: { custom: { preset: id, command, args: argv } },
+    });
+    set({ modal: 'none' });
+  };
+  return (
+    <Modal title="New agent from another CLI" onClose={() => set({ modal: 'none' })}>
+      <div className="custom-agent">
+        <p className="muted small">
+          Runs the tool in a terminal node in <code>{wsRoot}</code> with the Switchyard bus identity
+          in its environment. No permission-bypass flag is ever passed.
+        </p>
+        <div className="row wrap">
+          <label>
+            Tool{' '}
+            <select value={id} onChange={(e) => pick(e.target.value)} aria-label="Preset">
+              {presets.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                  {x.id === 'other' ? '' : x.installed ? ' (installed)' : ' (not installed)'}
+                </option>
+              ))}
+            </select>
+          </label>
+          {p && p.id !== 'other' && (
+            <span className={`badge ${p.installed ? 'badge-ok' : 'badge-wait'}`}>
+              {p.installed ? 'installed' : 'not installed'}
+            </span>
+          )}
+        </div>
+        {p && !p.installed && (
+          <div className="small">
+            Install: <code>{p.install}</code>
+          </div>
+        )}
+        {p && (
+          <div className="muted small">
+            {p.docs && (
+              <>
+                <a href={p.docs} target="_blank" rel="noreferrer">
+                  docs
+                </a>{' '}
+                ·{' '}
+              </>
+            )}
+            {p.bus}
+          </div>
+        )}
+        <div className="row">
+          <input
+            className="grow mono"
+            aria-label="Command"
+            placeholder="command"
+            value={command}
+            onChange={(e) => setCmd(e.target.value)}
+          />
+        </div>
+        <div className="row">
+          <input
+            className="grow mono"
+            aria-label="Arguments"
+            placeholder="arguments (quotes group words)"
+            value={argv}
+            onChange={(e) => setArgs(e.target.value)}
+          />
+        </div>
+        <div className="row">
+          <button className="btn" disabled={!command.trim()} onClick={() => go('agent-terminal')}>
+            Add terminal agent
+          </button>
+          {p?.drivable && (
+            <button
+              className="btn btn-ghost"
+              disabled={!command.trim()}
+              onClick={() => go('agent-chat')}
+              title="Driven turns: one non-interactive run per message, no session between turns"
+            >
+              Add as chat
+            </button>
+          )}
+        </div>
       </div>
     </Modal>
   );
