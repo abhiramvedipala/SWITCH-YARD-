@@ -5,6 +5,99 @@ import { harnessLabel, useStore } from '../store.js';
 import { Modal, timeAgo } from './bits.js';
 
 // ------------------------------------------------------------------ settings
+interface DesktopStatus {
+  config: 'present' | 'absent' | 'stale' | 'invalid';
+  configPath: string;
+  workspaceId: string | null;
+}
+
+const DESKTOP_CONFIG_LABEL: Record<DesktopStatus['config'], string> = {
+  present: 'switchyard entry present',
+  absent: 'no switchyard entry',
+  stale: 'switchyard entry points at another checkout; Connect refreshes it',
+  invalid: 'config is not valid JSON; Switchyard will not edit it',
+};
+
+/** Opt-in: writes only the `switchyard` entry of Claude Desktop's config and binds one identity to one workspace. */
+function ClaudeDesktopCard() {
+  const remote = useStore((s) => s.remote);
+  const workspaces = useStore((s) => s.workspaces);
+  const wsId = useStore((s) => s.wsId);
+  const notify = useStore((s) => s.notify);
+  const [st, setSt] = useState<DesktopStatus | null>(null);
+  const [pick, setPick] = useState('');
+  useEffect(() => {
+    api
+      .get<DesktopStatus>('/api/claude-desktop')
+      .then((s) => {
+        setSt(s);
+        setPick(s.workspaceId ?? wsId ?? '');
+      })
+      .catch(() => undefined);
+  }, [wsId]);
+  const act = async (action: 'connect' | 'remove') => {
+    try {
+      setSt(await api.post<DesktopStatus>('/api/claude-desktop', { action, workspaceId: pick }));
+      notify(
+        action === 'connect'
+          ? 'Connected. Restart Claude Desktop to load it.'
+          : 'Removed the switchyard entry and revoked its identity',
+      );
+    } catch (e) {
+      notify(String((e as Error).message), 'error');
+      // Remove revokes before it edits the config, so a refused edit can still have changed the identity.
+      api
+        .get<DesktopStatus>('/api/claude-desktop')
+        .then(setSt)
+        .catch(() => undefined);
+    }
+  };
+  const bound = workspaces.find((w) => w.id === st?.workspaceId);
+  const connected = st?.config === 'present' && !!bound;
+  return (
+    <div className="harness desktop-card">
+      <div className="row wrap">
+        <span className={`badge ${connected ? 'badge-ok' : 'badge-wait'}`}>
+          {st ? (connected ? `joined ${bound.name}` : 'not connected') : '…'}
+        </span>
+        {st && <span className="muted small">{DESKTOP_CONFIG_LABEL[st.config]}</span>}
+      </div>
+      {st && <div className="muted small mono">{st.configPath}</div>}
+      <div className="row wrap small">
+        <label>
+          Workspace{' '}
+          <select value={pick} onChange={(e) => setPick(e.target.value)} disabled={remote}>
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="btn btn-ghost btn-xs"
+          disabled={remote || !pick || st?.config === 'invalid'}
+          onClick={() => act('connect')}
+        >
+          Connect
+        </button>
+        {st && (st.config !== 'absent' || st.workspaceId) && (
+          <button className="btn btn-ghost btn-xs" disabled={remote} onClick={() => act('remove')}>
+            Remove
+          </button>
+        )}
+        {remote && <span className="muted">(change this on the computer)</span>}
+      </div>
+      <div className="muted small">
+        Adds only a <code>switchyard</code> entry to Claude Desktop's config (a .bak is saved first)
+        and puts a Claude Desktop node on that workspace's canvas: connect it to the agents it may
+        talk to. Restart Claude Desktop to load it; then ask a chat:{' '}
+        <code>list my switchyard peers</code>.
+      </div>
+    </div>
+  );
+}
+
 export function SettingsModal() {
   const set = useStore((s) => s.set);
   const settings = useStore((s) => s.settings);
@@ -173,6 +266,9 @@ export function SettingsModal() {
       <button className="btn btn-ghost btn-xs" onClick={() => loadHarnesses(true)}>
         Re-check
       </button>
+
+      <h3>Claude Desktop</h3>
+      <ClaudeDesktopCard />
 
       {settings && (
         <>

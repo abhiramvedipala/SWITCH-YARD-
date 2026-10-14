@@ -2,9 +2,17 @@ import type { Db } from './db/index.js';
 import { randomId } from './auth/token.js';
 import { hub } from './events.js';
 
-export type NodeType = 'terminal' | 'agent-terminal' | 'agent-chat' | 'note' | 'doc' | 'browser';
+export type NodeType =
+  | 'terminal'
+  | 'agent-terminal'
+  | 'agent-chat'
+  | 'note'
+  | 'doc'
+  | 'browser'
+  /** Claude Desktop's identity: an agent Switchyard did not start (no PTY, no driven turns). */
+  | 'external';
 
-export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'starting';
+export type NodeState = 'working' | 'idle' | 'needs_input' | 'exited' | 'starting' | 'external';
 
 export interface Workspace {
   id: string;

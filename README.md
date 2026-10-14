@@ -109,6 +109,13 @@ steps on agy talk to one long-lived stream-json process instead of one
 `agy -p` per turn. It writes nothing outside Switchyard's own database; untick
 to undo.
 
+**Claude Desktop (opt-in):** Settings → Claude Desktop → pick a workspace →
+**Connect**. Switchyard adds only a `switchyard` entry to
+`~/Library/Application Support/Claude/claude_desktop_config.json` (`.bak`
+first) and puts a Claude Desktop node on that canvas. Connect it to agents with
+edges, restart Claude Desktop, then ask a chat `list my switchyard peers`.
+**Remove** undoes both.
+
 ## Phone access (Tailscale)
 
 The core stays on `127.0.0.1`. To reach it from your phone, use Tailscale's

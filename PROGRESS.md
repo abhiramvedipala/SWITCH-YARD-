@@ -132,6 +132,17 @@ npm start                     # note the token it prints
       won't edit without your OK. Example:
       `{"permissions":{"allow":["command(git)","command(regex:python3 -m pytest.*)"]}}`
 
+## Rooms: one conversation, several AIs (in flight 2026-10-14)
+
+Owner's ask: combine Claude / ChatGPT / other AI chats so they join one conversation, work at the same time and take instructions. Decisions are in DECISIONS.md (2026-10-14). Four parallel streams:
+
+- [ ] **Rooms core** — `rooms`, `room_participants`, `room_messages` tables; modes `all` / `mention` / `round`; per-participant CLI sessions that see only unseen lines; @mention chain cap; Stop; seed from an imported Claude.ai / ChatGPT export; bus tools `list_rooms` / `read_room` / `post_to_room`; Rooms view in the web UI; mock-driven tests + ui-checks in Chromium and WebKit.
+- [ ] **`codex` harness** — ChatGPT through OpenAI's Codex CLI on the owner's subscription (`codex exec` JSON events, resume, sandbox/approval flags, bypass only with YOLO); fake-binary tests. Codex is not installed yet → owner step.
+- [ ] **API-key harnesses** — `api-anthropic`, `api-openai`, `api-gemini`: chat-only, keys as 0600 files under `~/.switchyard/keys/`, official hosts only, local fake servers in tests. Opt-in exception to the no-outbound rule.
+- [x] **Claude Desktop connector** (2026-10-14) — config writer (present / absent / stale / invalid, `.bak` once, invalid JSON refused), fixed `claude-desktop` external canvas node with a 0600 run file rotated on Connect and core boot and revoked on Remove, bus-mcp `whoami`, Settings card. 208 vitest, e2e (14 tools), 43 ui-checks. **Not yet tried with a real Claude Desktop** (owner step below).
+
+Not possible, by design: joining a _live_ claude.ai or chatgpt.com web chat. Neither has an API for that and automating the browser is against hard rule #1. Past chats join as imported context.
+
 ## Acceptance (real agents; one OWNER CHECK at a time, fresh `~/.switchyard/scratch` workspace each)
 
 Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, add a mock regression test, re-run only that check.
@@ -144,6 +155,13 @@ Log pass/fail here. On a fail: diagnose from `~/.switchyard/server.log`, fix, ad
 | A4 ask_user                    | pending |       |
 | A5 real run                    | pending |       |
 | A6 resume                      | pending |       |
+
+### OWNER CHECK CD — connect a Claude Desktop chat
+
+1. Start Switchyard from `~/switchyard` (the app). Settings → **Claude Desktop** → pick a workspace → **Connect**. The card should say "joined <workspace>" and "switchyard entry present".
+2. On that canvas, drag an edge from the new **Claude Desktop** node to each agent it may talk to.
+3. Quit Claude Desktop fully (⌘Q) and reopen it. In a new chat ask: `list my switchyard peers` → it should name the connected agents; `who am I on switchyard` → node `claude-desktop`.
+4. Paste back what the chat answered, and whether Claude Desktop showed a tool-approval prompt. Undo: Settings → Remove, restart Claude Desktop.
 
 ### OWNER CHECK A1 — two real agents talk
 

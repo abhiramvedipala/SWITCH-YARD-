@@ -16,7 +16,8 @@ describe('e2e (mock harness, real bus-mcp over MCP stdio)', () => {
   it('Phase 3 DoD: request/response between connected mocks; unconnected node isolated', async () => {
     const { runBusScenario } = await import('./scenario.js');
     const r = await runBusScenario();
-    expect(r.tools).toHaveLength(13);
+    expect(r.tools).toHaveLength(14);
+    expect(r.tools).toContain('whoami');
     expect(r.reply).toMatchObject({ status: 'replied', body: 'pong' });
     expect(r.cPeers).toEqual([]);
     expect(r.cInbox).toEqual([]);
