@@ -14,10 +14,9 @@ server if needed and opens the UI signed in). `npm run stop` stops the server. L
 
 All of it with the mock agent and real shells, so no AI quota was spent:
 
-- `npm run lint` clean · **169 vitest** · `npm run test:e2e` (real core + three real bus-mcp
+- `npm run lint` clean · **192 vitest** · `npm run test:e2e` (real core + three real bus-mcp
   processes over MCP stdio; a full mock run with real git evidence, `pytest` passing, denied-tool
-  evidence, run usage totals) · **40 headless-Chromium checks** · `npm run selftest` (idle RSS
-  66 MB / 0.8 % CPU against a 140 MB / 3 % budget).
+  evidence, run usage totals) · **40 headless-Chromium checks** · `npm run selftest` (39 MB footprint, under 1 % CPU against a 140 MB / 3 % budget) · `npm run mac:check`.
 - **Terminals:** real shells (node-pty), 10k-line replay across reloads, resize/rename/restart/stop.
 - **Canvas:** terminal, agent, chat, note, doc and browser-preview nodes, connections, minimap,
   ⌘K, focus mode, layout persisted, visible-only rendering, iNotch-style light/dark theme.
@@ -41,6 +40,8 @@ All of it with the mock agent and real shells, so no AI quota was spent:
   (README has the field list); `extras/xbar/` plugin.
 
 ## Still unverified (needs you, in this order; exact steps in PROGRESS.md → Owner to-do)
+
+**Blocker found 2026-10-13:** `agy` refuses this Google account ("not eligible for Antigravity … 18 years old or older"). Until OWNER CHECK F0b passes, everything that needs agy (F1, A1, A2, the agy reviewer in A5, agy resume in A6) cannot run; the Claude-only checks (A3, A4, Claude resume in A6, A5 with Claude as reviewer) can.
 
 1. **OWNER CHECK F0** — install and sign in to `agy`, run the `pong` request.
 2. **OWNER CHECK F1** — `node scripts/probe-agy-env.mjs` (one small agy request) decides whether

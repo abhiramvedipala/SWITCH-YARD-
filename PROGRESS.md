@@ -59,6 +59,12 @@ WebSocket origin and remote-detection rules.
 
 ## Owner to-do (exact steps)
 
+### OWNER CHECK F0b — make the Google account eligible for Antigravity (blocks F1, A1, A2, A5, A6-agy)
+
+1. Verify your age on the Google account you signed in to agy with (myaccount.google.com → Personal info → Birthday / age verification), or sign in to agy with a different eligible account: run `agy`, then `/logout` and sign in again.
+2. `agy -p "reply with the single word pong" --output-format json` → success is `"status": "SUCCESS"`.
+3. `node scripts/probe-agy-env.mjs` → paste the summary block.
+
 ### OWNER CHECK F0 — install and sign in to Antigravity (`agy` is not on this Mac)
 
 1. In Terminal: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
@@ -248,7 +254,7 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 ## F-phases (SWITCHYARD_FINAL_PROMPT.md)
 
 - [x] **F0** macOS bring-up: done on the owner's Mac 2026-10-13 (see "F0: macOS bring-up" below)
-- [ ] **F1** agy environment probe: `scripts/probe-agy-env.mjs` written; needs agy installed (OWNER CHECK F0/F1 below)
+- [ ] **F1** agy environment probe: **blocked on the Google account.** agy 1.3.4 is installed, but the probe run on 2026-10-13 ended with `Eligibility check failed: Your current account is not eligible for Antigravity. To use Antigravity you must be 18 years old or older … verify your age and try to log in again`. Hooks and the MCP server never started, so there is no result yet. Per-folder identity stays primary until this passes.
 - [x] **F2** run dirs out of the repo
 - [x] **F3** permissions so bus tools don't prompt
 - [x] **F4** message delivery without blind PTY typing (the Claude-socket experiment in step 3 is skipped: needs a real Claude)
@@ -264,6 +270,12 @@ Then open Runs and plan the hello.py goal with the Mock harness.
 **Check inventory (2026-10-13 evening, master):** lint clean · 192 vitest · e2e 19 PASS lines · 40 ui-checks · selftest footprint 39 MB, CPU 0.9 % (budget 140 MB / 3 %). `npm run test:all` runs everything in order.
 
 **In flight when the session stopped:** a native Swift/WKWebView `Switchyard.app` shell on branch `worktree-agent-a3ccafde8bf1719fa` (worktree under `.claude/worktrees/`), not merged, not reviewed.
+
+### Native Mac app (Swift AppKit + WKWebView, no Electron)
+
+**What changed:** `npm run mac:app` now compiles `scripts/mac/SwitchyardApp.swift` into `~/Applications/Switchyard.app` (ad-hoc signed, icon from the logo; the bash browser launcher remains the fallback when `swiftc` is missing). One window with a transparent titlebar, frame remembered, ⌘W hides, ⌘Q quits the app while the server keeps running, Edit/View/Window menus, mic permission for loopback only, JS dialogs as native alerts, external links to the default browser. It starts the server from the repo it was built in (`~/.switchyard/mac-app.json` says which) and signs in with the token file.
+**How to try it:** `npm run mac:app && open ~/Applications/Switchyard.app`; `SWITCHYARD_MAC_LAUNCH=1 npm run mac:check` (17 checks, real launch on a temp port and home).
+**Unverified:** nobody has looked at the window yet (no Screen Recording permission for screenshots): titlebar inset, clipboard in terminals, mic prompt, dialogs. Measured ~94 MB app + ~93 MB WebContent.
 
 ### F8: persistent agy driven sessions (opt-in)
 

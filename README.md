@@ -42,7 +42,8 @@ Neither is required: the **Mock agent** uses the same message system with no AI.
 
 ## Using it on a Mac
 
-- `npm run mac:app` builds `~/Applications/Switchyard.app` - a tiny launcher (no Electron). Double-click it (or drag it to the Dock): it starts the server if it is not running and opens the UI already signed in.
+- `npm run mac:app` builds `~/Applications/Switchyard.app`: a native AppKit + WebKit window (needs the Xcode Command Line Tools; without `swiftc` it falls back to a launcher that opens your browser). It starts the local server if needed and signs you in with the token from `~/.switchyard/ui-session`. ⌘W hides the window, ⌘Q quits the app; the server keeps running until `npm run stop`. ⌘R reloads, right-click → Inspect Element works. Allow the microphone once for voice input. `npm run mac:check` verifies the bundle; `~/.switchyard/mac-app.json` says which repo the app was built from (re-run `npm run mac:app` if you move the folder).
+- **macOS notifications** (Settings → Behavior, off by default): a banner when an agent asks a question, waits for a permission or stops at a prompt. One per item, at most one every 2 s. Changeable only on the computer itself. If none appear, allow notifications for Script Editor in System Settings → Notifications.
 - Or open the UI in Safari/Chrome and use _Add to Dock_ - a `manifest.webmanifest` is served.
 - `npm run stop` stops the server (pid file in `~/.switchyard/server.pid`). Logs: `~/.switchyard/server.log`.
 - It stays light: the server idles at ~80 MB and runs with a tiny young-generation heap.
