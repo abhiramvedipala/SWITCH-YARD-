@@ -9,6 +9,10 @@ APP="$DEST/Switchyard.app"
 SWIFTC="$(command -v swiftc || true)"
 MODE=bash
 [ -n "$SWIFTC" ] && "$SWIFTC" --version >/dev/null 2>&1 && MODE=swift
+SY_HOME="${SWITCHYARD_HOME:-$HOME/.switchyard}"
+mkdir -p "$SY_HOME"
+# Keep the previous build as $SY_HOME/Switchyard.app.bak (one generation) so a bad rebuild is a `mv` away.
+if [ -d "$APP" ]; then rm -rf "$SY_HOME/Switchyard.app.bak"; mv "$APP" "$SY_HOME/Switchyard.app.bak"; fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
@@ -89,8 +93,6 @@ LAUNCH
 fi
 
 # Diagnostics (no secrets): which repo the app points at and how it was built.
-SY_HOME="${SWITCHYARD_HOME:-$HOME/.switchyard}"
-mkdir -p "$SY_HOME"
 printf '{"repo":"%s","builtAt":"%s","mode":"%s"}\n' "$REPO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MODE" > "$SY_HOME/mac-app.json"
 
 echo "Built $APP ($MODE) — double-click it, or drag it to the Dock."
