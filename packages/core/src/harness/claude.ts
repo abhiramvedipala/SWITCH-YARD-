@@ -203,6 +203,8 @@ export const claude: Harness = {
     ];
     if (ctx.node.yolo) args.push('--permission-mode', 'bypassPermissions');
     if (ctx.resumeRef) args.push('--resume', ctx.resumeRef);
+    // `claude [options] [prompt]` (--help): the positional prompt starts the interactive session with it.
+    if (ctx.initialPrompt) args.push(ctx.initialPrompt);
     return { cmd: bin(), args, env: busEnv(ctx.node.id), cwd: ctx.cwd };
   },
 

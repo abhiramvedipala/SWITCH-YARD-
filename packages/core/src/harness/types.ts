@@ -21,6 +21,8 @@ export interface NodeCtx {
   cwd: string;
   /** Resume an existing agent session in this terminal instead of starting fresh. */
   resumeRef?: string | null;
+  /** A first prompt the interactive session starts with (hand-offs: "Read HANDOFF-….md first"). */
+  initialPrompt?: string;
   /** Claude HTTP-hook URL for this node (contains the per-node hook secret). */
   hookUrl?: string;
 }

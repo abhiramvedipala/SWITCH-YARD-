@@ -26,7 +26,11 @@ export const mock: Harness = {
   terminalLaunch(ctx: NodeCtx): TerminalLaunch {
     return {
       cmd: process.execPath,
-      args: [...LEAN_NODE_FLAGS, MOCK_AGENT_ENTRY],
+      args: [
+        ...LEAN_NODE_FLAGS,
+        MOCK_AGENT_ENTRY,
+        ...(ctx.initialPrompt ? ['--prompt', ctx.initialPrompt] : []),
+      ],
       env: busEnv(ctx.node.id),
       cwd: ctx.cwd,
     };

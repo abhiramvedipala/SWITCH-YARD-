@@ -251,6 +251,10 @@ async function interactive() {
   let autoTimer: NodeJS.Timeout | null = null;
   const lastInbox = new Map<string, string>();
   console.log('[mock] Mock agent ready — type `help`.');
+  // `--prompt <text>`: the first prompt a hand-off starts the session with (a real agent would act on it).
+  const initial = process.argv[process.argv.indexOf('--prompt') + 1];
+  if (process.argv.includes('--prompt') && initial)
+    console.log(`[mock] initial prompt: ${initial}`);
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: 'mock> ' });
   const show = (o: unknown) => console.log(typeof o === 'string' ? o : JSON.stringify(o, null, 2));
 

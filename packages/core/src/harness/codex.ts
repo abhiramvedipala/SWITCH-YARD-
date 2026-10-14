@@ -182,6 +182,8 @@ export const codex: Harness = {
     ];
     if (ctx.node.yolo) args.push('--dangerously-bypass-approvals-and-sandbox');
     if (ctx.resumeRef) args.push('resume', ctx.resumeRef);
+    // `codex [OPTIONS] [PROMPT]` per OpenAI's README (unverified here: codex is not installed); never with resume.
+    else if (ctx.initialPrompt) args.push(ctx.initialPrompt);
     return { cmd: bin(), args, env: busEnv(ctx.node.id), cwd: ctx.cwd };
   },
 

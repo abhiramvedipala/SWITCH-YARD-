@@ -34,6 +34,8 @@ export interface CreateNodeInput {
   resumeRef?: string | null;
   sessionRef?: string | null;
   allowOwnFolder?: boolean;
+  /** Terminal agents only: the prompt the session starts with. */
+  initialPrompt?: string;
 }
 
 export class NodeService {
@@ -110,13 +112,17 @@ export class NodeService {
       summary: '',
     });
     if (harness && getHarness(harness).isAgent) this.caps.issue(node.id, workspaceId, cwd);
-    if (PTY_TYPES.includes(type)) this.start(node.id, { resumeRef: input.resumeRef ?? null });
+    if (PTY_TYPES.includes(type))
+      this.start(node.id, {
+        resumeRef: input.resumeRef ?? null,
+        initialPrompt: input.initialPrompt,
+      });
     return this.store.getNode(node.id)!;
   }
 
   start(
     nodeId: string,
-    opts: { resumeRef?: string | null; cols?: number; rows?: number } = {},
+    opts: { resumeRef?: string | null; initialPrompt?: string; cols?: number; rows?: number } = {},
   ): void {
     const node = this.store.getNode(nodeId);
     if (!node || !this.isPtyNode(node)) throw new Error('not a terminal node');
@@ -129,6 +135,7 @@ export class NodeService {
       workspace: ws,
       cwd,
       resumeRef: opts.resumeRef ?? null,
+      initialPrompt: opts.initialPrompt,
       hookUrl: h.isAgent ? this.caps.hookUrl(node.id) : undefined,
     });
     ptys.spawn(node.id, { ...launch, cols: opts.cols, rows: opts.rows });

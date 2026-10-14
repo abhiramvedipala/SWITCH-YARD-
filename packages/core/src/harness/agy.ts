@@ -397,6 +397,8 @@ export const agy: Harness = {
     const args: string[] = [];
     if (ctx.node.yolo) args.push('--dangerously-skip-permissions');
     if (ctx.resumeRef) args.push('--conversation', ctx.resumeRef);
+    // agy --help: `-i` = --prompt-interactive, "run an initial prompt interactively and continue the session".
+    if (ctx.initialPrompt) args.push('-i', ctx.initialPrompt);
     return { cmd: bin(), args, env: busEnv(ctx.node.id), cwd: ctx.cwd };
   },
 
