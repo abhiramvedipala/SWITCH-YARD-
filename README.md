@@ -7,7 +7,7 @@ one canvas. They can find each other, pass messages and tasks, and flag when
 they need you, and you can chain them into planner → builder → reviewer
 "runs". One person supervises everything. It runs on your own machine with
 your own subscriptions: no cloud, no accounts, no telemetry.
-asdfasdf
+
 
 Switchyard is an original, independent implementation inspired by the
 publicly described feature set of October Desktop. It shares no code, assets
