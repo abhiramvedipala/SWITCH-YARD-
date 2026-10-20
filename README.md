@@ -1,4 +1,5 @@
-# Switchyard
+# Switchyard -- clone of october
+
 
 A local-first workspace where several AI coding agents (Claude Code and
 Google's Antigravity CLI, with a built-in mock for testing) run side by side on
