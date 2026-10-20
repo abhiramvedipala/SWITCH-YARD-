@@ -1,4 +1,4 @@
-# Switchyard -- clone of october
+# Switchyard 
 
 
 A local-first workspace where several AI coding agents (Claude Code and
